@@ -1,4 +1,17 @@
+
+# coding: utf-8
+
+# In[1]:
+
+from core import Brian_Simulator
+from brian2 import *
 import csv
+import pylab
+#get_ipython().magic(u'matplotlib inline')
+
+
+# In[ ]:
+
 
 params = {
     'cpre_0':0.1,
@@ -38,21 +51,18 @@ params = {
     'rho_star':0.5,
     'D':4.6098}
 
+sim = Brian_Simulator(simulation_length=10000, N_E=1000,N_I=20, params=params)
+sim.run()
 
 
+# In[ ]:
 
-f = open('results/parameters.csv', 'w')
-writer = csv.writer(f)
-for key, value in params.items():
-    # control what parameters to change
-    #if key == 'tau_lif':
+reader = csv.reader(open('results/stable_rho.csv','r'))
+stable_rho = reader.next()
+#print stable_rho
+plot(stable_rho)
+show()
 
-    writer.writerow([key, value])
-f.close()
-
-f2 = open('results/parameters.csv', 'r')
-reader = csv.reader(f2)
-mydict = dict(reader)
-f2.close()
-print mydict
+xlabel('Excitatory Neuron ID')
+ylabel('Stable rho')
 

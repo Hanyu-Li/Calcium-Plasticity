@@ -1,11 +1,34 @@
 from brian2 import *
 import csv
+import pylab
+
+def visualise_connectivity(S):
+    Ns = len(S.source)
+    Nt = len(S.target)
+    f1 = figure(figsize=(10, 4))
+    subplot(121)
+    plot(zeros(Ns), arange(Ns), 'ok', ms=10)
+    plot(ones(Nt), arange(Nt), 'ok', ms=10)
+    for i, j in zip(S.i, S.j):
+        plot([0, 1], [i, j], '-k')
+    xticks([0, 1], ['Source', 'Target'])
+    ylabel('Neuron index')
+    xlim(-0.1, 1.1)
+    ylim(-1, max(Ns, Nt))
+    subplot(122)
+    plot(S.i, S.j, 'ok')
+    xlim(-1, Ns)
+    ylim(-1, Nt)
+    xlabel('Source neuron index')
+    ylabel('Target neuron index')
+    #show()
 
 class Brian_Simulator:
-    def __init__(self, simulation_length, N_E, N_I, params):
+    def __init__(self, simulation_length, N_E, N_I,sample, params):
         self.simulation_length = simulation_length
         self.N_E = N_E
         self.N_I = N_I
+        self.sample = sample
         self.params = params
 
     def run(self):
@@ -13,12 +36,12 @@ class Brian_Simulator:
         prefs.devices.cpp_standalone.openmp_threads = 8
         start_scope()
         #control parameters
-        debug = False
+        debug = True
         #simulation_length = 10000
         observe_window = 100
         #N = 1000
-        E_record_id = range(self.N_E)
-        I_record_id = range(self.N_I)
+        E_record_id = range(self.sample)
+        I_record_id = range(self.sample)
 
         F = 1000*Hz
 
@@ -101,28 +124,6 @@ class Brian_Simulator:
 
 
         S_EE = Synapses(G_E, G_E, model = synaptic_model, pre = pre_model, post = post_model)
-        #S = Synapses(G_E, G_E,
-        #            model = 
-        #            '''
-        #            w : 1 
-        #            dcpre/dt = -cpre / taupre : 1
-        #            dcpost/dt = -cpost / taupost : 1
-        #            c = cpre + cpost : 1
-        #            dummy = (c>theta_D) : 1
-        #            drho/dt = (-rho*(1-rho)*(0.5-rho) + gamma_P*(1-rho)*(c>theta_P) - gamma_D*rho*(c>theta_D)) / taurho : 1
-        #            ''',
-        #            pre =
-        #            '''
-        #            v_post += rho
-        #            cpre += Cpre
-        #            
-        #            ''',
-        #            post = 
-        #            '''
-        #            cpost += Cpost
-        #            
-        #            ''')
-        #S.connect('i==0 and j!=0', p=1.0)
         S_EE.connect('i!=j', p=0.1)
 
         #tmp = ((np.arange(len(S))+1) * 4).tolist()
@@ -140,17 +141,26 @@ class Brian_Simulator:
 
         # Unrecorded simulation
         #statemon_S = StateMonitor(S, ['rho'], record = [0,1], dt=0.1*ms)
+        statemon_S = StateMonitor(S_EE, ['rho'], record = E_record_id, dt=0.1*ms)
         run((self.simulation_length-observe_window)*ms, report='stdout', report_period=1*second)
         # Recorded simulation
-        statemon_S = StateMonitor(S_EE, ['rho'], record = E_record_id, dt=0.1*ms)
         run(observe_window*ms, report='stdout', report_period=1*second)
 
         device.build(directory='output', compile=True, run=True, debug=False)
         # In[4]:
 
         if debug:
-            p1 = figure(1, figsize=(20,20))
-            visualise_plasticity(statemon_S.t, statemon_S.rho, sample=100)
+            #p1 = figure(1, figsize=(20,20))
+            #visualise_plasticity(statemon_S.t, statemon_S.rho, sample=100)
+            visualise_connectivity(S_EE)
+            #show()
+
+            f2 = figure(figsize=(10,4))
+            plot(statemon_S.t, transpose(statemon_S.rho[E_record_id]))
+            legend(E_record_id)
+            xlabel('time/s')
+            ylabel('synaptic efficacy \rho')
+            show()
         #Analysis
         else:
             print statemon_S.rho
@@ -208,7 +218,7 @@ def main():
         'rho_star':0.5,
         'D':4.6098}
 
-    sim = Brian_Simulator(simulation_length=2500, N_E=800,N_I=200, params=params)
+    sim = Brian_Simulator(simulation_length=10000, N_E=80,N_I=20,sample=10, params=params)
     sim.run()
 if __name__ == "__main__":
     main()
