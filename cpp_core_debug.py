@@ -1,13 +1,3 @@
-
-# coding: utf-8
-
-# In[1]:
-
-
-
-
-# In[ ]:
-
 from brian2 import *
 import csv
 import pylab
@@ -39,13 +29,12 @@ def visualize_IF_curve(I=None, F=None):
         sample = 1
     else:
         sample = F.shape[1]
-
-    avg_F = np.ndarray((I.shape[0], sample), dtype=float64)
+    avg_F = np.zeros((I.shape[0], sample), dtype=float64)
     print I.shape[0], F.shape[0], interp, sample
     figure(figsize=(10,8))
     for i in arange(sample):
-        avg_F[:,i] = np.mean(F[:,i].reshape(-1, interp), axis=1)
-        print I.shape, avg_F.shape
+        avg_F = np.mean(F.reshape(-1, interp), axis=1)
+        print avg_F.shape
         plot(I, avg_F)
     draw()
         
@@ -78,9 +67,8 @@ class Brian_Simulator:
         self.params = params
         self.debug = debug
 
-    def run(self, param_diffs):
-        #set_device('cpp_standalone')
-        prefs.codegen.target = 'cython'
+    def run(self):
+        set_device('cpp_standalone')
         #prefs.devices.cpp_standalone.openmp_threads = 8
         start_scope()
 
@@ -88,14 +76,49 @@ class Brian_Simulator:
         observe_window = 100
         E_record_id = range(self.sample)
         I_record_id = range(self.sample)
+        F = 1000*Hz
 
-        #Unpack Variables used in brian code
-        for key in self.params.keys():
-            exec_str = key + " = (self.params['" + key + "']+" + "param_diffs['"+key+"'])"
-            if "tau" in key:
-                exec_str = exec_str+"*ms"
-            exec(exec_str)
-
+        #Variables used in brian code
+        cpre_0 = self.params['cpre_0']
+        cpost_0 = self.params['cpost_0']
+        rho_0 = self.params['rho_0']
+        c = self.params['c']
+        dummy =self.params['dummy']
+        Ipre =self.params['Ipre']
+        Ipost = self.params['Ipost']
+        w0 = self.params['w0']
+        w_EE = self.params['w_EE']
+        w_IE = self.params['w_IE']
+        w_EI = self.params['w_EI']
+        w_II = self.params['w_II']
+        #LIF specific constants
+        tau_lif = self.params['tau_lif']*ms
+        V_init = self.params['V_init']
+        V_rest = self.params['V_rest']
+        V_reset = self.params['V_reset']
+        V_threshold = self.params['V_threshold']
+        CM = self.params['CM']
+        RM = self.params['RM']
+        sigma = self.params['sigma']
+        refrac = self.params['refrac']
+        #Synapse model specific constants
+        rho_init = self.params['rho_init']
+        ca_initial = self.params['ca_initial']
+        ca_delay = self.params['ca_delay']
+        Cpre = self.params['Cpre']
+        Cpost = self.params['Cpost']
+        tau_ca = self.params['tau_ca']
+        theta_D = self.params['theta_D']
+        theta_P = self.params['theta_P']
+        gamma_D = self.params['gamma_D']
+        gamma_P = self.params['gamma_P']
+        taurho = self.params['taurho']*ms
+        taurho_fast = self.params['taurho_fast']*ms # dummy
+        taupre = self.params['taupre']*ms
+        taupost =self.params['taupost']*ms
+        tau_ca = self.params['tau_ca']*ms
+        rho_star = self.params['rho_star']
+        D = self.params['D']
         
         stim_E = TimedArray(self.I_ext_E, dt=1*ms)
         stim_I = TimedArray(self.I_ext_I, dt=1*ms)
@@ -115,9 +138,6 @@ class Brian_Simulator:
 
         G_I = NeuronGroup(self.N_I, lif_eqs_I, threshold='v>V_threshold', reset='v = V_reset')
         G_I.v = V_init
-
-
-
 
         # plastic models
         synaptic_model_plastic = '''
@@ -150,10 +170,7 @@ class Brian_Simulator:
                     v_post += w                 
                     '''
         
-        # no post_model_I
-
-
-
+        # no post_model for static synapses
 
         # use convention S_[to][from]
 
@@ -166,11 +183,8 @@ class Brian_Simulator:
         S_EE.connect('i!=j', p=0.1)
         S_IE.connect(True, p=0.1)
         S_EI.connect(True, p=0.1)
-        S_II.connect(True, p=0.1)
+        S_II.connect('i!=j', p=0.1)
 
-        #tmp = ((np.arange(len(S))+1) * 4).tolist()
-        #S.delay = tmp*ms
-        #S.delay = [4, 40, 400, 4000]*ms
         
         S_EE.cpre = cpre_0
         S_EE.cpost= cpost_0
@@ -183,13 +197,6 @@ class Brian_Simulator:
         S_EI.w = w_EI
         S_II.w = w_II
         
-       
-        
-        #G_E.I_ext = self.I_ext_E
-        #G_E.I_ext = [25] * self.N_E
-        #G_E.I_ext[0] = 50
-
-
         # Unrecorded simulation
         #statemon_S = StateMonitor(S, ['rho'], record = [0,1], dt=0.1*ms)
 
@@ -198,18 +205,35 @@ class Brian_Simulator:
         spikemon_G_I = SpikeMonitor(G_I)
         popratemon_G_E = PopulationRateMonitor(G_E)
         popratemon_G_I = PopulationRateMonitor(G_I)
-        run(self.simulation_length*ms, report='stdout', report_period=1*second)
+        #run(self.simulation_length*ms, report='stdout', report_period=1*second)
+        # Unrecorded simulation
         #run((self.simulation_length-observe_window)*ms, report='stdout', report_period=1*second)
-
+        tryer = 5
+        _j = 0
+        device.insert_code('main', '''
+        cout << "Test working or not" << endl;
+        int _i = 0;
+        for(_i=0;_i<%s;_i++){
+        ''' % (tryer))
         # Recorded simulation
-        #run(observe_window*ms, report='stdout', report_period=1*second)
 
-        #device.build(directory='output', compile=True,clear=True, run=True, debug=False)
+
+        sigma = _j * 5
+        run(self.simulation_length/tryer*ms, report='stdout', report_period=2*second)
+
+        _j += 1
+        device.insert_code('main', '''
+        }
+        ''')
+
+        # test code
+        device.build(directory='output', compile=True, run=True, debug=False)
 
 
         # Simulation ends
 
-        # In[4]:
+        # Analysis
+
         # calculate binned firing rate
         window = 20*ms
         window_length = int(window/defaultclock.dt)
@@ -261,8 +285,6 @@ class Brian_Simulator:
         else:
             #print statemon_S_EE.rho
             print "skip plotting"
-        #Analysis
-        #print spikemon_G_E.i
 
         
 
@@ -333,48 +355,6 @@ def main():
         'rho_star':0.5,
         'D':4.6098}
 
-    param_diffs = {
-        'cpre_0':0,
-        'cpost_0':0,
-        'rho_0':0,
-        'c':0,
-        'dummy':0,
-        'Ipre':0,
-        'Ipost':0,
-        'w0':0,
-        'w_EE':0,
-        'w_IE':0,
-        'w_II':0,
-        'w_EI':0,
-        #LIF specific constants,
-        'tau_lif':0, #*ms
-        'V_init':0,
-        'V_rest':0,
-        'V_reset':0,
-        'V_threshold':0,
-        'CM':0,
-        'RM':0,
-        'sigma':0,
-        'refrac':0,
-        #Synapse model specific constants,
-        'rho_init':0,
-        'ca_initial':0,
-        'ca_delay':0, #ms
-        'Cpre':0,
-        'Cpost':0,
-        'tau_ca':0,
-        'theta_D':0,
-        'theta_P':0,
-        'gamma_D':0,
-        'gamma_P':0,
-        'taurho':0, #*ms
-        'taurho_fast':0, #*ms # dummy,
-        'taupre':0,
-        'taupost':0,
-        'tau_ca':0, #*ms
-        'rho_star':0,
-        'D':0}
-
     simulation_length = 10000
     N_E = 400
     N_I = 1
@@ -383,32 +363,29 @@ def main():
     I_ext_E = build_input([0,1,0,1], [0, 0.25,0.5,0.75, 1], simulation_length, N_E)
     I_ext_I = build_input([0,0,0,0], [0, 0.25,0.5,0.75, 1], simulation_length, N_I)
 
-    stair_length = 50
+    stair_length = 100
     I_ext_E_increasing = build_increasing_input(0, 40, stair_length, simulation_length, N_E)
     #print I_ext_E_increasing
     #I_ext_E = 25*np.ones((simulation_length, N_E), dtype=float64)
     #I_ext_I = 25*np.ones((simulation_length, N_I), dtype=float64)
 
     debug = False
-    param_trial_num = 2
+    param_trial_num = 1
     binned_rate_E = np.zeros((simulation_length * 10, param_trial_num))
     binned_rate_I = np.zeros((simulation_length * 10, param_trial_num))
     rho = np.zeros((sample, simulation_length, param_trial_num))
-    '''
     sim = Brian_Simulator(simulation_length=simulation_length, N_E=N_E,N_I=N_I,sample=sample, 
                       I_ext_E=I_ext_E_increasing, I_ext_I=I_ext_I, params=params, debug=debug)
     (binned_rate_E, binned_rate_I, rho) = sim.run()
     '''
-
-
-    sim = Brian_Simulator(simulation_length=simulation_length, N_E=N_E,N_I=N_I,sample=sample,
-            I_ext_E=I_ext_E_increasing, I_ext_I=I_ext_I, params=params, debug=debug)
     for i in arange(param_trial_num):
-        param_diffs['sigma'] = 5*(i+1)
-        #params['sigma'] = i * 5
-        (binned_rate_E[:,i], binned_rate_I[:,i], rho[:,:,i]) = sim.run(param_diffs)
-
+        params['sigma'] = i * 5
+        sim = Brian_Simulator(simulation_length=simulation_length, N_E=N_E,N_I=N_I,sample=sample, 
+                          I_ext_E=I_ext_E_increasing, I_ext_I=I_ext_I, params=params, debug=debug)
+        (binned_rate_E[:,i], binned_rate_I[:,i], rho[:,:,i]) = sim.run()
+    '''
     visualize_IF_curve(I_ext_E_increasing, binned_rate_E)
+
     show()
 
 
