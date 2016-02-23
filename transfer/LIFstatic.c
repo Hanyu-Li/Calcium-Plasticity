@@ -132,7 +132,7 @@ x=(threshold-mu)/sigma, y=(reset-mu)/sigma */
 
 main() { 
   float mu,sigma,dmu;
-  sigma=5.;
+  sigma=0.1;
   dmu=0.1;
   for(mu=0.;mu<40.;mu+=dmu) printf("%f %f\n",mu,trans((theta-mu)/sigma,(hvr-mu)/sigma));
 }
