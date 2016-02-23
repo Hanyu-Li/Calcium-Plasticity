@@ -1,4 +1,4 @@
-output/
+output*/
 .ipynb_checkpoints/
 *.swp
 *.pyc
