@@ -27,7 +27,7 @@ def visualize_connectivity(S):
     xlabel('Source neuron index')
     ylabel('Target neuron index')
 def visualize_all(I=None, F=None, rho=None, t=None, resets=None):
-    fig = figure(figsize=(50, 30))
+    fig = figure(figsize=(20, 10))
     plot_num = 4
 
     ax1 = fig.add_subplot(plot_num, 1, 1)
@@ -49,7 +49,6 @@ def visualize_tI_curve(I=None, t=None, sub=False, ax=None):
         figure(figsize=(10,8))
         ax = plt.gca()
     title('I ext')
-    print t.shape, I[:,0].shape
     ax.plot(t, I[:,0])
 
 def visualize_IF_curve(I=None, F=None, t=None, sub=False, ax=None):
@@ -66,11 +65,8 @@ def visualize_IF_curve(I=None, F=None, t=None, sub=False, ax=None):
         figure(figsize=(10,8))
         ax = plt.gca()
     title('IF_curve')
-    print t.shape
     for i in arange(sample):
         #avg_F[:,i] = np.mean(F[:,i].reshape(-1, interp), axis=1)
-        #print I.shape, avg_F.shape
-        print t.shape, avg_F[:,i].shape
         #plot(I[:,0], avg_F[:,i])
         label = 'sigma = '+str(5*(i+1))
         ax.plot(t, avg_F[:,i], label=label)
@@ -97,7 +93,6 @@ def visualize_F_rho_curve(F=None, rho=None, I=None, t=None, resets=None, sub=Fal
         figure(figsize=(10,8))
         ax_a = plt.gca()
     ax_a.set_title('t rho curve')
-    print avg_F.shape, avg_rho.shape
     for i in arange(sample):
         ax_a.plot(t, avg_rho[:,i])
         #plot(avg_F[:,i], avg_rho[:,i])
@@ -105,7 +100,7 @@ def visualize_F_rho_curve(F=None, rho=None, I=None, t=None, resets=None, sub=Fal
 
     #if resets > 1:
     avg_avg_rho = np.mean(avg_rho.reshape((resets, -1, sample)), axis=1)
-    print "avgavg", avg_avg_rho.shape
+    #I_downsample = I[0:
     if not sub:
         figure(figsize=(10,8))
         ax_b = plt.gca()
@@ -134,6 +129,137 @@ def build_increasing_input(min_v, max_v, stair_length, length, N):
     a[ind,:] = stair_height
     b = np.cumsum(a, axis=0)
     return b
+
+def visualize_I_ext(I=None):
+    print I.shape
+    width = np.floor(np.sqrt(I.shape[0]))
+    print width
+    figure()
+    imshow(I.reshape((-1,width)))
+    draw()
+def add_bias(I=None, sigmas=None):
+    print I.shape, sigmas.shape
+    for nid in arange(I.shape[1]):
+        I[:,nid] = I[:,nid] + sigmas[nid]
+    return I
+def add_bias_phasewise(I=None, I_ext=None, sigmas=None):
+    print I.shape, sigmas.shape
+    for nid in arange(I.shape[1]):
+        I[:,nid] = I[:,nid] * sigmas[nid] + I_ext
+    return I
+
+
+
+def analyse_spikes(spikes=None):
+    N = len(spikes['t'])
+    print N
+    #isi = []
+    firing_rate = np.zeros((N, 1))
+    for nid in arange(N):
+        isi = np.diff(np.sort(spikes['t'][nid]))
+        try:
+            firing_rate[nid] = 1.0 / np.mean(isi)
+        except:
+            firing_rate[nid] = 0
+    mean_r = np.mean(firing_rate)
+    std_r = np.std(firing_rate)
+    print "mean: ", mean_r
+    print "std: ", std_r
+
+
+
+    figure(figsize=(20,10))
+    subplot(211)
+    plot(firing_rate)
+    subplot(212)
+    hist(firing_rate, bins=20, histtype='step')
+    draw()
+    return firing_rate
+
+def analyse_spikes_phasewise(t=None, I=None, spikes=None):
+    print I.shape
+    N = len(spikes['t'])
+    baseline = I[0,0]
+    
+    index = np.where(I[:,0] - baseline != 0)
+    stim_len = index[0].shape[0]
+    print stim_len
+    pre_index = index[0][0:stim_len/2]
+    post_index = index[0][stim_len/2:]
+   
+    pre_start_t = double(t[pre_index[0]]) / 1000
+    pre_end_t = double(t[pre_index[-1]]) / 1000 
+    post_start_t = double(t[post_index[0]]) / 1000 
+    post_end_t = double(t[post_index[-1]]) / 1000 
+    #print pre_start_t, pre_end_t, post_start_t, post_end_t
+
+    null_pre_firing_rate = np.zeros((N, 1))
+    pre_firing_rate = np.zeros((N, 1))
+    null_post_firing_rate = np.zeros((N, 1))
+    post_firing_rate = np.zeros((N, 1))
+    for nid in arange(I.shape[1]):
+        all_spike_time = np.asarray(np.sort(spikes['t'][nid]))
+
+        null_pre_spike_time = all_spike_time[np.less_equal(all_spike_time, pre_start_t)]
+        pre_spike_time = all_spike_time[np.logical_and(np.less_equal(all_spike_time, pre_end_t), np.greater(all_spike_time, pre_start_t))]
+        null_post_spike_time = all_spike_time[np.logical_and(np.less_equal(all_spike_time, post_start_t), np.greater(all_spike_time, pre_end_t))]
+        post_spike_time = all_spike_time[np.logical_and(np.less_equal(all_spike_time, post_end_t), np.greater(all_spike_time, post_start_t))]
+
+        #print all_spike_time.shape, pre_spike_time.shape, post_spike_time.shape
+        null_isi_pre = np.diff(null_pre_spike_time)
+        isi_pre = np.diff(pre_spike_time)
+        null_isi_post = np.diff(null_post_spike_time)
+        isi_post = np.diff(post_spike_time)
+
+        #print np.mean(isi_pre), np.mean(isi_post)
+        try:
+            null_pre_firing_rate[nid] = 1.0 / np.mean(null_isi_pre)
+            pre_firing_rate[nid] = 1.0 / np.mean(isi_pre)
+            null_post_firing_rate[nid] = 1.0 / np.mean(null_isi_post)
+            post_firing_rate[nid] = 1.0 / np.mean(isi_post)
+        except:
+            continue
+    null_pre_firing_rate[np.isnan(null_pre_firing_rate)] = 0
+    pre_firing_rate[np.isnan(pre_firing_rate)] = 0
+    null_post_firing_rate[np.isnan(null_post_firing_rate)] = 0
+    post_firing_rate[np.isnan(post_firing_rate)] = 0
+    #print pre_firing_rate
+    #print post_firing_rate
+
+    mean_null_pre = np.mean(null_pre_firing_rate)
+    std_null_pre = np.std(null_pre_firing_rate)
+
+    mean_pre = np.mean(pre_firing_rate)
+    std_pre = np.std(pre_firing_rate)
+
+    mean_null_post = np.mean(null_post_firing_rate)
+    std_null_post = np.std(null_post_firing_rate)
+
+    mean_post = np.mean(post_firing_rate)
+    std_post = np.std(post_firing_rate)
+    print 'mean_1:', mean_null_pre
+    print 'std_1:', std_null_pre
+    print 'mean_2:', mean_pre
+    print 'std_2:', std_pre
+    print 'mean_3:', mean_null_post
+    print 'std_3:', std_null_post
+    print 'mean_4:', mean_post
+    print 'std_4:', std_post
+
+    figure(figsize=(20,10))
+    bins = np.linspace(0, 80)
+    hist(null_pre_firing_rate, bins=bins, histtype='step', label='phase 1 mean: %.2f, std: %.2f'% (mean_null_pre, std_null_pre))
+    hist(pre_firing_rate, bins=bins, histtype='step', label='phase 2 mean: %.2f, std: %.2f' % (mean_pre, std_pre))
+    hist(null_post_firing_rate, bins=bins, histtype='step', label='phase 3 mean: %.2f, std: %.2f'%( mean_null_post, std_null_post))
+    hist(post_firing_rate, bins=bins, histtype='step', label='phase 4 mean: %.2f, std: %.2f'%(mean_post, std_post))
+    legend()
+    draw()
+        
+
+
+
+
+
 
 class Brian_Simulator:
     def __init__(self, simulation_length, N_E, N_I,sample, I_ext_E, I_ext_I, params, debug):
@@ -178,9 +304,6 @@ class Brian_Simulator:
         lif_eqs_I = '''
         dv/dt = (- (v+70) + stim_I(t,i)) / tau_lif + sigma*xi*tau_lif**-0.5 : 1
         '''
-        #P = PoissonGroup(N, rates=F)
-        # = NeuronGroup(2, eqs, threshold='v>vt', reset='v = vr')
-        #S = Synapses(G, G, pre='v+=1*mV', connect='i==0 and j==1')
 
 
         G_E = NeuronGroup(self.N_E, lif_eqs_E, threshold='v>V_threshold', reset='v = V_reset')
@@ -230,31 +353,35 @@ class Brian_Simulator:
 
         # use convention S_[to][from]
 
-        S_EE = Synapses(G_E, G_E, model = synaptic_model_plastic, pre = pre_model_E_static, post = post_model_E_plastic)
+        S_EE = Synapses(G_E, G_E, model = synaptic_model_plastic, pre = pre_model_E_plastic, post = post_model_E_plastic)
         S_IE = Synapses(G_E, G_I, model = synaptic_model_static, pre = pre_model_E_static, post = None)
         S_EI = Synapses(G_I, G_E, model = synaptic_model_static, pre = pre_model_I_static, post = None)
         S_II = Synapses(G_I, G_I, model = synaptic_model_static, pre = pre_model_I_static, post = None)
         
         
-        S_EE.connect('i!=j', p=0.1)
-        S_IE.connect(True, p=0.1)
-        S_EI.connect(True, p=0.1)
-        S_II.connect(True, p=0.1)
+        prob = 0.05
+        S_EE.connect('i!=j', p=prob)
+        S_IE.connect(True, p=prob)
+        S_EI.connect(True, p=prob)
+        S_II.connect('i!=j', p=prob)
 
         #tmp = ((np.arange(len(S))+1) * 4).tolist()
         #S.delay = tmp*ms
         #S.delay = [4, 40, 400, 4000]*ms
         
+        # scaling J_EE connections wrt Higgins 2014 paper
+        k_E = self.N_E * prob / (1000 * 0.05)
+        k_I = self.N_I * prob / (1000 * 0.05)
         S_EE.cpre = cpre_0
         S_EE.cpost= cpost_0
         S_EE.rho = rho_0
-        S_EE.w = w_EE
+        S_EE.w = w_EE / k_E
         S_EE.pre.delay = D*ms
         S_EE.post.delay = D*ms
         
-        S_IE.w = w_IE
-        S_EI.w = w_EI
-        S_II.w = w_II
+        S_IE.w = w_IE / k_E
+        S_EI.w = w_EI / k_I
+        S_II.w = w_II / k_I
         
        
         
@@ -299,7 +426,7 @@ class Brian_Simulator:
                     ''' % (resets))
                 #for r in arange(resets):
                     #run(self.simulation_length/resets*ms, report='stdout', report_period=10*second)
-                run(self.simulation_length/resets*ms)
+                run(self.simulation_length/resets*ms, report='stdout', report_period=1*second)
 
                 #print double(r)/double(resets) * 100, '%'
                 S_EE.cpre = cpre_0
@@ -311,7 +438,7 @@ class Brian_Simulator:
                     
 
             else:
-                run(self.simulation_length*ms)
+                run(self.simulation_length*ms, report='stdout', report_period=1*second)
             device.build(directory=cpp_directory, compile=True, run=True, debug=False)
 
 
@@ -382,7 +509,6 @@ class Brian_Simulator:
 
         np_rho = np.array(statemon_S_EE.rho)
         stable_rho = np.mean(np_rho, axis=1)
-        print stable_rho.shape
 
         f2 = open('results/stable_rho.csv', 'w')
         writer = csv.writer(f2)
@@ -394,7 +520,7 @@ class Brian_Simulator:
         writer.writerow(spikemon_G_E.i)
         f3.close()
 
-        return (binned_rate_E, binned_rate_I, np_rho)
+        return (binned_rate_E, binned_rate_I, np_rho, spikemon_G_E.all_values())
         #p = pyplot.plot(stable_rho)
         #savefig('results/rho.png')
 
@@ -488,36 +614,53 @@ def main():
 
     # control variables
     simulation_length = 10000
-    stair_length = 1000
-    resets = simulation_length / stair_length
+    stair_length = 500
+    resets = 1
 
-    N_E = 500
+    N_E = 1000
     N_I = 1
-    sample = 3
-    
-    # input current candidates
-    I_ext_E_increasing = build_increasing_input(0, 40, stair_length, simulation_length, N_E)
-    I_ext_I_increasing = build_increasing_input(0, 40, stair_length, simulation_length, N_I)
-    I_ext_E_stable = build_input([12], [0,1], simulation_length, N_E)
-    I_ext_I_stable = build_input([12], [0,1], simulation_length, N_I)
-    I_ext_E_4_phase = build_input([0,1,0,1], [0, 0.25,0.5,0.75, 1], simulation_length, N_E)
-    I_ext_I_4_phase = build_input([0,0,0,0], [0, 0.25,0.5,0.75, 1], simulation_length, N_I)
+    sample = 10
 
-    input_flag = 'stair'
+    mean_I_ext = 12
+
+    # input current candidates
+
+    #input_flag = 'stair'
     #input_flag = 'stable'
+    #input_flag = 'stable_with_bias'
     #input_flag = '4_phase'
+    input_flag = '4_phase_with_bias'
     
+
+    base_private_sigma = 5
+    private_sigmas_E = np.random.normal(0,base_private_sigma,N_E)
+    private_sigmas_I = np.random.normal(0,base_private_sigma,N_I)
+
 
     if input_flag == 'stair':
-        I_ext_E = I_ext_E_increasing
-        I_ext_I = I_ext_I_increasing
+        I_ext_E = build_increasing_input(0, 40, stair_length, simulation_length, N_E)
+        I_ext_I = build_increasing_input(0, 40, stair_length, simulation_length, N_I)
+        resets = simulation_length / stair_length
+
     elif input_flag == 'stable':
-        I_ext_E = I_ext_E_stable
-        I_ext_I = I_ext_I_stable
-        resets = 1
+        I_ext_E= build_input([mean_I_ext], [0,1], simulation_length, N_E)
+        I_ext_I= build_input([mean_I_ext], [0,1], simulation_length, N_I)
+
+    elif input_flag == 'stable_with_bias':
+        I_ext_E= add_bias(I_ext_E_stable, private_sigmas_E)
+        I_ext_I= add_bias(I_ext_I_stable, private_sigmas_I)
+
     elif input_flag == '4_phase':
-        I_ext_E = I_ext_E_4_phase
-        I_ext_I = I_ext_I_4_phase
+        I_ext_E= build_input([0,1,0,1], [0, 0.25,0.5,0.75, 1], simulation_length, N_E)
+        I_ext_I= build_input([0,1,0,1], [0, 0.25,0.5,0.75, 1], simulation_length, N_I)
+
+
+    elif input_flag == '4_phase_with_bias':
+        I_ext_E= build_input([0,1,0,1], [0, 0.25,0.5,0.75, 1], simulation_length, N_E)
+        I_ext_I= build_input([0,1,0,1], [0, 0.25,0.5,0.75, 1], simulation_length, N_I)
+
+        I_ext_E= add_bias_phasewise(I_ext_E, mean_I_ext, private_sigmas_E)
+        I_ext_I= add_bias_phasewise(I_ext_I, mean_I_ext, private_sigmas_I)
 
     debug = False
     mode = 'cpp_standalone'
@@ -528,11 +671,6 @@ def main():
     binned_rate_E = np.zeros((simulation_length * 10, param_trial_num))
     binned_rate_I = np.zeros((simulation_length * 10, param_trial_num))
     rho = np.zeros((sample, simulation_length, param_trial_num))
-    '''
-    sim = Brian_Simulator(simulation_length=simulation_length, N_E=N_E,N_I=N_I,sample=sample, 
-                      I_ext_E=I_ext_E_increasing, I_ext_I=I_ext_I, params=params, debug=debug)
-    (binned_rate_E, binned_rate_I, rho) = sim.run()
-    '''
 
 
 
@@ -544,10 +682,19 @@ def main():
         cpp_directory = 'output_'+str(i)
         param_diffs['sigma'] = 5*(i+1)
         #params['sigma'] = i * 5
-        (binned_rate_E[:,i], binned_rate_I[:,i], rho[:,:,i]) = sim.run(param_diffs, mode=mode, resets=resets, cpp_directory=cpp_directory)
-        print 't ', t.shape
+        (binned_rate_E[:,i], binned_rate_I[:,i], rho[:,:,i], spikes) = sim.run(param_diffs, mode=mode, resets=resets, cpp_directory=cpp_directory)
         #call(['rm','-r',cpp_directory])
 
+
+    #print spikes['t'][0]
+    # spike analysis
+    if input_flag == '4_phase_with_bias':
+        analyse_spikes_phasewise(t, I_ext_E,spikes)
+    else:
+        analyse_spikes(spikes)
+
+    snapshot = simulation_length / 4 + 1
+    visualize_I_ext(I_ext_E[snapshot,:])
     visualize_all(I_ext_E, binned_rate_E, rho,t,  resets)
     #visualize_tI_curve(I_ext_E_stable, t)
     #visualize_IF_curve(I_ext_E_stable, binned_rate_E, t)
