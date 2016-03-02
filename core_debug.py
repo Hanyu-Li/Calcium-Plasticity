@@ -1,16 +1,15 @@
-
-
 from brian2 import *
 import csv
 import pylab
 from subprocess import call
+#from collections import OrderedDict
 
 #get_ipython().magic(u'matplotlib inline')
 
 def visualize_connectivity(S):
     Ns = len(S.source)
     Nt = len(S.target)
-    figure(1, figsize=(10, 4))
+    figure(figsize=(10, 4))
     subplot(121)
     plot(zeros(Ns), arange(Ns), 'ok', ms=10)
     plot(ones(Nt), arange(Nt), 'ok', ms=10)
@@ -26,7 +25,7 @@ def visualize_connectivity(S):
     ylim(-1, Nt)
     xlabel('Source neuron index')
     ylabel('Target neuron index')
-def visualize_all(I=None, F=None, rho=None, t=None, resets=None):
+def visualize_all(I=None, F=None, rho=None, t=None, resets=None, legends=None):
     fig = figure(figsize=(20, 10))
     plot_num = 4
 
@@ -34,11 +33,11 @@ def visualize_all(I=None, F=None, rho=None, t=None, resets=None):
     visualize_tI_curve(I, t, sub=True,ax=ax1)
 
     ax2 = fig.add_subplot(plot_num, 1, 2)
-    visualize_IF_curve(I, F, t, sub=True, ax=ax2)
+    visualize_IF_curve(I, F, t, legends, sub=True, ax=ax2)
 
     ax3 = fig.add_subplot(plot_num, 1, 3)
     ax4 = fig.add_subplot(plot_num, 1, 4)
-    visualize_F_rho_curve(F, rho, I, t, resets, sub=True, ax_a=ax3, ax_b=ax4)
+    visualize_F_rho_curve(F, rho, I, t, resets, legends, sub=True, ax_a=ax3, ax_b=ax4)
 
     draw()
     savefig('results/all.png')
@@ -51,7 +50,7 @@ def visualize_tI_curve(I=None, t=None, sub=False, ax=None):
     title('I ext')
     ax.plot(t, I[:,0])
 
-def visualize_IF_curve(I=None, F=None, t=None, sub=False, ax=None):
+def visualize_IF_curve(I=None, F=None, t=None, legends=None, sub=False, ax=None):
     interp = F.shape[0] / I.shape[0]
     if len(F.shape) == 1:
         sample = 1
@@ -68,12 +67,13 @@ def visualize_IF_curve(I=None, F=None, t=None, sub=False, ax=None):
     for i in arange(sample):
         #avg_F[:,i] = np.mean(F[:,i].reshape(-1, interp), axis=1)
         #plot(I[:,0], avg_F[:,i])
-        label = 'sigma = '+str(5*(i+1))
+        #label = 'sigma = '+str(5*(i+1))
+        label = legends[i]
         ax.plot(t, avg_F[:,i], label=label)
     ax.legend()
     #savefig('results/e.png')
     draw()
-def visualize_F_rho_curve(F=None, rho=None, I=None, t=None, resets=None, sub=False, ax_a=None, ax_b=None):
+def visualize_F_rho_curve(F=None, rho=None, I=None, t=None, resets=None,legends=None, sub=False, ax_a=None, ax_b=None):
     if len(F.shape) == 1:
         sample = 1
     else:
@@ -106,7 +106,8 @@ def visualize_F_rho_curve(F=None, rho=None, I=None, t=None, resets=None, sub=Fal
         ax_b = plt.gca()
     ax_b.set_title('average rho curve')
     for i in arange(sample):
-        label = 'sigma = '+str(5*(i+1))
+        #label = 'sigma = '+str(5*(i+1))
+        label = legends[i]
         ax_b.plot(avg_avg_rho[:,i], label=label)
     ax_b.legend()
     #savefig('results/f.png')
@@ -131,36 +132,39 @@ def build_increasing_input(min_v, max_v, stair_length, length, N):
     return b
 
 def visualize_I_ext(I=None):
-    print I.shape
+    #print I.shape
     width = np.floor(np.sqrt(I.shape[0]))
-    print width
+    I_trim = I[0:width*width]
+    #print width
     figure()
-    imshow(I.reshape((-1,width)))
+    imshow(I_trim.reshape((-1,width)))
     draw()
 def add_bias(I=None, sigmas=None):
-    print I.shape, sigmas.shape
+    #print I.shape, sigmas.shape
     for nid in arange(I.shape[1]):
         I[:,nid] = I[:,nid] + sigmas[nid]
     return I
 def add_bias_phasewise(I=None, I_ext=None, sigmas=None):
-    print I.shape, sigmas.shape
+    #print I.shape, sigmas.shape
     for nid in arange(I.shape[1]):
         I[:,nid] = I[:,nid] * sigmas[nid] + I_ext
     return I
 
 
 
-def analyse_spikes(spikes=None):
+def analyse_spikes(key=None, spikes=None):
     N = len(spikes['t'])
     print N
     #isi = []
     firing_rate = np.zeros((N, 1))
     for nid in arange(N):
         isi = np.diff(np.sort(spikes['t'][nid]))
+        #print isi
         try:
             firing_rate[nid] = 1.0 / np.mean(isi)
         except:
-            firing_rate[nid] = 0
+            continue
+            #firing_rate[nid] = 0
     mean_r = np.mean(firing_rate)
     std_r = np.std(firing_rate)
     print "mean: ", mean_r
@@ -169,16 +173,20 @@ def analyse_spikes(spikes=None):
 
 
     figure(figsize=(20,10))
+    title(str(key))
     subplot(211)
     plot(firing_rate)
     subplot(212)
+    bins = np.linspace(0, 80)
     hist(firing_rate, bins=20, histtype='step')
     draw()
     return firing_rate
 
-def analyse_spikes_phasewise(t=None, I=None, spikes=None):
+def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None):
     print I.shape
+    #print spikes['t']
     N = len(spikes['t'])
+   
     baseline = I[0,0]
     
     index = np.where(I[:,0] - baseline != 0)
@@ -237,6 +245,7 @@ def analyse_spikes_phasewise(t=None, I=None, spikes=None):
 
     mean_post = np.mean(post_firing_rate)
     std_post = np.std(post_firing_rate)
+    mean_shift = mean_post - mean_pre
     print 'mean_1:', mean_null_pre
     print 'std_1:', std_null_pre
     print 'mean_2:', mean_pre
@@ -245,15 +254,32 @@ def analyse_spikes_phasewise(t=None, I=None, spikes=None):
     print 'std_3:', std_null_post
     print 'mean_4:', mean_post
     print 'std_4:', std_post
+    print 'mean_firing_rate_shift = mean_4 - mean_2:', mean_post - mean_pre 
 
     figure(figsize=(20,10))
+    title(str(key))
     bins = np.linspace(0, 80)
     hist(null_pre_firing_rate, bins=bins, histtype='step', label='phase 1 mean: %.2f, std: %.2f'% (mean_null_pre, std_null_pre))
     hist(pre_firing_rate, bins=bins, histtype='step', label='phase 2 mean: %.2f, std: %.2f' % (mean_pre, std_pre))
     hist(null_post_firing_rate, bins=bins, histtype='step', label='phase 3 mean: %.2f, std: %.2f'%( mean_null_post, std_null_post))
     hist(post_firing_rate, bins=bins, histtype='step', label='phase 4 mean: %.2f, std: %.2f'%(mean_post, std_post))
+    text(60, 8, 'mean_firing_rate_shift'+str(mean_post-mean_pre))
     legend()
     draw()
+    return mean_shift
+def build_spike_dict(param_diffs):
+    # currently only one parameter can be different from the baseline, later should include combinations
+    spike_dict = {}
+    # first add a dummy one, 
+    spike_dict['Baseline'] = None
+    for key, val in param_diffs.iteritems():
+        if val != 0:
+            print key, val
+            for v in val:
+                print v
+                if v != 0:
+                    spike_dict[(key, v)] = None
+    return spike_dict
         
 
 
@@ -272,7 +298,7 @@ class Brian_Simulator:
         self.params = params
         self.debug = debug
 
-    def run(self, param_diffs, mode='cython', resets=1, cpp_directory='output_0'):
+    def run(self, param_diff, mode='cython', resets=1, cpp_directory='output_0'):
         ## cpp mode
         if mode == 'cpp_standalone':
             set_device('cpp_standalone')
@@ -283,14 +309,18 @@ class Brian_Simulator:
 
         start_scope()
 
-        #control parameters
+        # control parameters
         observe_window = 100
         E_record_id = range(self.sample)
         I_record_id = range(self.sample)
 
         #Unpack Variables used in brian code
         for key in self.params.keys():
-            exec_str = key + " = (self.params['" + key + "']+" + "param_diffs['"+key+"'])"
+            if key == param_diff[0]:
+                exec_str = key + " = self.params['" + key + "']+" + "param_diff[1]"
+            else:
+                exec_str = key + " = self.params['" + key + "']"
+            #print exec_str
             if "tau" in key:
                 exec_str = exec_str+"*ms"
             exec(exec_str)
@@ -320,7 +350,7 @@ class Brian_Simulator:
                     w : 1 
                     dcpre/dt = -cpre / taupre : 1
                     dcpost/dt = -cpost / taupost : 1
-                    c = cpre + cpost : 1
+                    c = cpre + cpost + eta*cpre*cpost : 1
                     dummy = (c>theta_D) : 1
                     drho/dt = (-rho*(1-rho)*(0.5-rho) + gamma_P*(1-rho)*(c>theta_P) - gamma_D*rho*(c>theta_D)) / taurho : 1
                     '''
@@ -410,7 +440,7 @@ class Brian_Simulator:
                     S_EE.cpost= cpost_0
                     S_EE.rho = rho_0
             else:
-                run(self.simulation_length*ms)
+                run(self.simulation_length*ms, report='stdout', report_period=1*second)
                     
             #run((self.simulation_length-observe_window)*ms, report='stdout', report_period=1*second)
 
@@ -497,7 +527,7 @@ class Brian_Simulator:
             
         else:
             #print statemon_S_EE.rho
-            print "skip plotting"
+            print "Simulation Complete"
         #Analysis
         #print spikemon_G_E.i
 
@@ -548,7 +578,7 @@ def main():
         'V_threshold':-50,
         'CM':0.001,
         'RM':20.0,
-        'sigma':5,
+        'sigma':10,
         'refrac':0,
         #Synapse model specific constants,
         'rho_init':0.019,
@@ -556,6 +586,7 @@ def main():
         'ca_delay':4.61, #ms
         'Cpre':0.56175,
         'Cpost':1.23964,
+        'eta':0,
         'tau_ca':22.6936,
         'theta_D':1,
         'theta_P':1.3,
@@ -569,6 +600,7 @@ def main():
         'rho_star':0.5,
         'D':4.6098}
 
+    # additively applied to params
     param_diffs = {
         'cpre_0':0,
         'cpost_0':0,
@@ -598,6 +630,7 @@ def main():
         'ca_delay':0, #ms
         'Cpre':0,
         'Cpost':0,
+        'eta':[0, 1, 2, 3],
         'tau_ca':0,
         'theta_D':0,
         'theta_P':0,
@@ -612,18 +645,19 @@ def main():
         'D':0}
 
 
-    # control variables
-    simulation_length = 10000
-    stair_length = 500
+    # Control variables
+    simulation_length = 3000
+    stair_length = 50
     resets = 1
 
-    N_E = 1000
-    N_I = 1
+    N_E = 400
+    N_I = 100
     sample = 10
 
-    mean_I_ext = 12
+    #12 with all excitatory, 15 with E:I=4:1 
+    mean_I_ext = 15
 
-    # input current candidates
+    # input pattern candidates
 
     #input_flag = 'stair'
     #input_flag = 'stable'
@@ -663,39 +697,54 @@ def main():
         I_ext_I= add_bias_phasewise(I_ext_I, mean_I_ext, private_sigmas_I)
 
     debug = False
-    mode = 'cpp_standalone'
-    param_trial_num = 1
 
 
     # result variables
+    spike_dict = build_spike_dict(param_diffs) # store spike trains for each parameter set
+    param_trial_num = len(spike_dict)
+
     binned_rate_E = np.zeros((simulation_length * 10, param_trial_num))
     binned_rate_I = np.zeros((simulation_length * 10, param_trial_num))
     rho = np.zeros((sample, simulation_length, param_trial_num))
+    mean_rate_shift =np.zeros((param_trial_num,1))
+    print spike_dict
 
+    if param_trial_num == 1:
+        mode = 'cpp_standalone'
+    else:
+        mode = 'cython'
 
 
     t = arange(simulation_length)
     
     sim = Brian_Simulator(simulation_length=simulation_length, N_E=N_E,N_I=N_I,sample=sample,
             I_ext_E=I_ext_E, I_ext_I=I_ext_I, params=params, debug=debug)
-    for i in arange(param_trial_num):
+    #for i in arange(param_trial_num):
+    for i, key in enumerate(spike_dict):
         cpp_directory = 'output_'+str(i)
-        param_diffs['sigma'] = 5*(i+1)
+        #param_diffs['sigma'] = 5*(i+1)
         #params['sigma'] = i * 5
-        (binned_rate_E[:,i], binned_rate_I[:,i], rho[:,:,i], spikes) = sim.run(param_diffs, mode=mode, resets=resets, cpp_directory=cpp_directory)
+
+        print i, key
+        (binned_rate_E[:,i], binned_rate_I[:,i], rho[:,:,i], spike_dict[key]) = sim.run(key, mode=mode, resets=resets, cpp_directory=cpp_directory)
         #call(['rm','-r',cpp_directory])
 
 
     #print spikes['t'][0]
     # spike analysis
+    #print len(spike_dict)
     if input_flag == '4_phase_with_bias':
-        analyse_spikes_phasewise(t, I_ext_E,spikes)
+        for key in spike_dict:
+            print "Key:",key
+            analyse_spikes_phasewise(t, I_ext_E,key, spike_dict[key])
     else:
-        analyse_spikes(spikes)
+        for key in spike_dict:
+            #analyse_spikes_phasewise(t, I_ext_E,val)
+            analyse_spikes(key, spike_dict[key])
 
     snapshot = simulation_length / 4 + 1
     visualize_I_ext(I_ext_E[snapshot,:])
-    visualize_all(I_ext_E, binned_rate_E, rho,t,  resets)
+    visualize_all(I_ext_E, binned_rate_E, rho, t, resets, spike_dict.keys())
     #visualize_tI_curve(I_ext_E_stable, t)
     #visualize_IF_curve(I_ext_E_stable, binned_rate_E, t)
     #visualize_F_rho_curve(binned_rate_E, rho,I_ext_E_stable,t, resets)
