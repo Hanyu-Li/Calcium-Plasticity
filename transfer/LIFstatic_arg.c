@@ -2,6 +2,8 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
 #define SQPI sqrt(4.*atan(1.))
 #define TWOPI (8.*atan(1.))
@@ -130,9 +132,15 @@ x=(threshold-mu)/sigma, y=(reset-mu)/sigma */
 }
 
 
-main() { 
+int main(int argc, char* argv[]) { 
   float mu,sigma,dmu;
-  sigma=10;
+  if(argc != 2){
+      return 0;
+  }
+  else{
+    sigma=atof(argv[1]);
+    printf("sigma= %f\n", sigma);
+  }
   dmu=0.1;
   for(mu=0.;mu<40.;mu+=dmu) printf("%f %f\n",mu,trans((theta-mu)/sigma,(hvr-mu)/sigma));
 }

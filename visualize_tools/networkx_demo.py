@@ -1,7 +1,7 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 
-G=nx.random_geometric_graph(200,0.125)
+G=nx.random_geometric_graph(20,0.125)
 # position is stored as node attribute data for random_geometric_graph
 pos=nx.get_node_attributes(G,'pos')
 
@@ -17,7 +17,7 @@ for n in pos:
 
 # color by path length from node near center
 p=nx.single_source_shortest_path_length(G,ncenter)
-
+print p
 plt.figure(figsize=(8,8))
 nx.draw_networkx_edges(G,pos,nodelist=[ncenter],alpha=0.4)
 nx.draw_networkx_nodes(G,pos,nodelist=p.keys(),

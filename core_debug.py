@@ -2,7 +2,9 @@ from brian2 import *
 import csv
 import pylab
 from subprocess import call
-#from collections import OrderedDict
+import scipy.io as sio
+#import numpy.matlib
+from collections import OrderedDict
 
 #get_ipython().magic(u'matplotlib inline')
 
@@ -25,9 +27,14 @@ def visualize_connectivity(S):
     ylim(-1, Nt)
     xlabel('Source neuron index')
     ylabel('Target neuron index')
-def visualize_all(I=None, F=None, rho=None, t=None, resets=None, legends=None):
+def visualize_all(I=None, F=None, rho=None, t=None, resets=None, legends=None, input_flag=None):
     fig = figure(figsize=(20, 10))
-    plot_num = 4
+    if input_flag=='4_phase_with_bias':
+        plot_num = 3
+        ax4 = None
+    else:
+        plot_num = 4
+        ax4 = fig.add_subplot(plot_num, 1, 4)
 
     ax1 = fig.add_subplot(plot_num, 1, 1)
     visualize_tI_curve(I, t, sub=True,ax=ax1)
@@ -36,11 +43,10 @@ def visualize_all(I=None, F=None, rho=None, t=None, resets=None, legends=None):
     visualize_IF_curve(I, F, t, legends, sub=True, ax=ax2)
 
     ax3 = fig.add_subplot(plot_num, 1, 3)
-    ax4 = fig.add_subplot(plot_num, 1, 4)
     visualize_F_rho_curve(F, rho, I, t, resets, legends, sub=True, ax_a=ax3, ax_b=ax4)
 
     draw()
-    savefig('results/all.png')
+    savefig('results/all_1.png')
 
 
 def visualize_tI_curve(I=None, t=None, sub=False, ax=None):
@@ -99,17 +105,18 @@ def visualize_F_rho_curve(F=None, rho=None, I=None, t=None, resets=None,legends=
 
 
     #if resets > 1:
-    avg_avg_rho = np.mean(avg_rho.reshape((resets, -1, sample)), axis=1)
-    #I_downsample = I[0:
-    if not sub:
-        figure(figsize=(10,8))
-        ax_b = plt.gca()
-    ax_b.set_title('average rho curve')
-    for i in arange(sample):
-        #label = 'sigma = '+str(5*(i+1))
-        label = legends[i]
-        ax_b.plot(avg_avg_rho[:,i], label=label)
-    ax_b.legend()
+    if ax_b != None:
+        avg_avg_rho = np.mean(avg_rho.reshape((resets, -1, sample)), axis=1)
+        #I_downsample = I[0:
+        if not sub:
+            figure(figsize=(10,8))
+            ax_b = plt.gca()
+        ax_b.set_title('average rho curve')
+        for i in arange(sample):
+            #label = 'sigma = '+str(5*(i+1))
+            label = legends[i]
+            ax_b.plot(avg_avg_rho[:,i], label=label)
+        ax_b.legend()
     #savefig('results/f.png')
     draw()
         
@@ -182,7 +189,21 @@ def analyse_spikes(key=None, spikes=None):
     draw()
     return firing_rate
 
-def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None):
+def analyse_all_parameter_sets(t=None, I=None,spikes=None, rate_model_dist=None):
+    fig = figure(figsize=(20,10))
+    sample_size = len(spikes)
+    grid_width = np.ceil(np.sqrt(sample_size))
+    grid_height = np.ceil(sample_size/grid_width)
+
+    i = 1
+    for key in spikes:
+        ax = fig.add_subplot(grid_height, grid_width, i)
+        print "Key:",key
+        i = i + 1
+        analyse_spikes_phasewise(t, I,key, spikes[key], rate_model_dist,sub=True, ax=ax)
+    savefig('results/all_2')
+
+def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, rate_model_dist=None, sub=False,ax=None):
     print I.shape
     #print spikes['t']
     N = len(spikes['t'])
@@ -246,6 +267,12 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None):
     mean_post = np.mean(post_firing_rate)
     std_post = np.std(post_firing_rate)
     mean_shift = mean_post - mean_pre
+
+    scaling_factor = np.ceil(N/rate_model_dist.shape[0])
+    scaled_rate_model_dist = np.tile(rate_model_dist, (scaling_factor, 1))
+    mean_real = np.mean(scaled_rate_model_dist)
+    std_real = np.std(scaled_rate_model_dist)
+
     print 'mean_1:', mean_null_pre
     print 'std_1:', std_null_pre
     print 'mean_2:', mean_pre
@@ -254,22 +281,38 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None):
     print 'std_3:', std_null_post
     print 'mean_4:', mean_post
     print 'std_4:', std_post
+
+    print 'mean_real:', mean_real
+    print 'std_real:', std_real
     print 'mean_firing_rate_shift = mean_4 - mean_2:', mean_post - mean_pre 
 
-    figure(figsize=(20,10))
+    if sub==False:
+        figure(figsize=(20,10))
+        ax = plt.gca()
     title(str(key))
-    bins = np.linspace(0, 80)
-    hist(null_pre_firing_rate, bins=bins, histtype='step', label='phase 1 mean: %.2f, std: %.2f'% (mean_null_pre, std_null_pre))
-    hist(pre_firing_rate, bins=bins, histtype='step', label='phase 2 mean: %.2f, std: %.2f' % (mean_pre, std_pre))
-    hist(null_post_firing_rate, bins=bins, histtype='step', label='phase 3 mean: %.2f, std: %.2f'%( mean_null_post, std_null_post))
-    hist(post_firing_rate, bins=bins, histtype='step', label='phase 4 mean: %.2f, std: %.2f'%(mean_post, std_post))
-    text(60, 8, 'mean_firing_rate_shift'+str(mean_post-mean_pre))
-    legend()
+    log_x = True
+    if log_x:
+        bins = np.logspace(0, 2, num=25)
+    else:
+        bins = np.linspace(0, 100, num=25)
+
+
+    
+    #hist(null_pre_firing_rate, bins=bins, histtype='step', label='phase 1 mean: %.2f, std: %.2f'% (mean_null_pre, std_null_pre))
+    ax.hist(pre_firing_rate, bins=bins, histtype='step', label='phase 2 mean: %.2f, std: %.2f' % (mean_pre, std_pre))
+    #hist(null_post_firing_rate, bins=bins, histtype='step', label='phase 3 mean: %.2f, std: %.2f'%( mean_null_post, std_null_post))
+    ax.hist(post_firing_rate, bins=bins, histtype='step', label='phase 4 mean: %.2f, std: %.2f'%(mean_post, std_post))
+
+    ax.hist(scaled_rate_model_dist[0:N], bins=bins, histtype='step', label='real data mean: %.2f, std: %.2f' % (mean_real, std_real))
+    #text(60, 8, 'mean_firing_rate_shift'+str(mean_post-mean_pre))
+    xscale('log')
+    ax.legend(loc=2, fontsize=8)
     draw()
     return mean_shift
 def build_spike_dict(param_diffs):
     # currently only one parameter can be different from the baseline, later should include combinations
-    spike_dict = {}
+    #spike_dict = {}
+    spike_dict = OrderedDict()
     # first add a dummy one, 
     spike_dict['Baseline'] = None
     for key, val in param_diffs.iteritems():
@@ -578,7 +621,7 @@ def main():
         'V_threshold':-50,
         'CM':0.001,
         'RM':20.0,
-        'sigma':10,
+        'sigma':15,
         'refrac':0,
         #Synapse model specific constants,
         'rho_init':0.019,
@@ -630,7 +673,7 @@ def main():
         'ca_delay':0, #ms
         'Cpre':0,
         'Cpost':0,
-        'eta':[0, 1, 2, 3],
+        'eta':0,
         'tau_ca':0,
         'theta_D':0,
         'theta_P':0,
@@ -646,16 +689,16 @@ def main():
 
 
     # Control variables
-    simulation_length = 3000
-    stair_length = 50
+    simulation_length = 8000
+    stair_length = 500
     resets = 1
 
-    N_E = 400
-    N_I = 100
+    N_E = 1000
+    N_I = 250
     sample = 10
 
     #12 with all excitatory, 15 with E:I=4:1 
-    mean_I_ext = 15
+    mean_I_ext = 17
 
     # input pattern candidates
 
@@ -666,7 +709,7 @@ def main():
     input_flag = '4_phase_with_bias'
     
 
-    base_private_sigma = 5
+    base_private_sigma = 8
     private_sigmas_E = np.random.normal(0,base_private_sigma,N_E)
     private_sigmas_I = np.random.normal(0,base_private_sigma,N_I)
 
@@ -725,7 +768,7 @@ def main():
         #param_diffs['sigma'] = 5*(i+1)
         #params['sigma'] = i * 5
 
-        print i, key
+        #print i, key
         (binned_rate_E[:,i], binned_rate_I[:,i], rho[:,:,i], spike_dict[key]) = sim.run(key, mode=mode, resets=resets, cpp_directory=cpp_directory)
         #call(['rm','-r',cpp_directory])
 
@@ -733,10 +776,14 @@ def main():
     #print spikes['t'][0]
     # spike analysis
     #print len(spike_dict)
+    ref_data = sio.loadmat('data/nov_stim_rates.mat')
+    rate_model_dist = ref_data['rnov']
+    
     if input_flag == '4_phase_with_bias':
-        for key in spike_dict:
-            print "Key:",key
-            analyse_spikes_phasewise(t, I_ext_E,key, spike_dict[key])
+        analyse_all_parameter_sets(t, I_ext_E, spike_dict,rate_model_dist) 
+        #for key in spike_dict:
+        #    print "Key:",key
+        #    analyse_spikes_phasewise(t, I_ext_E,key, spike_dict[key], rate_model_dist)
     else:
         for key in spike_dict:
             #analyse_spikes_phasewise(t, I_ext_E,val)
@@ -744,7 +791,7 @@ def main():
 
     snapshot = simulation_length / 4 + 1
     visualize_I_ext(I_ext_E[snapshot,:])
-    visualize_all(I_ext_E, binned_rate_E, rho, t, resets, spike_dict.keys())
+    visualize_all(I_ext_E, binned_rate_E, rho, t, resets, spike_dict.keys(), input_flag)
     #visualize_tI_curve(I_ext_E_stable, t)
     #visualize_IF_curve(I_ext_E_stable, binned_rate_E, t)
     #visualize_F_rho_curve(binned_rate_E, rho,I_ext_E_stable,t, resets)
