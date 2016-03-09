@@ -6,8 +6,36 @@ import scipy.io as sio
 from scipy.stats import lognorm
 #import numpy.matlib
 from collections import OrderedDict
+import networkx as nx
 
 #get_ipython().magic(u'matplotlib inline')
+
+def unpack_connectivity(S):
+    #print S.i
+    #print S.j
+    #print S.rho
+    connectivity = zip(S.i, S.j, S.rho)
+    #print connectivity
+    #G = nx.from_edgelist(connectivity)
+    #pos = nx.get_node_attributes(G, 'pos')
+    G = nx.Graph()
+    G.add_weighted_edges_from(connectivity)
+    figure(figsize=(40,20))
+    thresh = 0.6
+    elarge=[(u,v) for (u,v,d) in G.edges(data=True) if d['weight'] > thresh]
+    esmall=[(u,v) for (u,v,d) in G.edges(data=True) if d['weight'] <=thresh]
+    pos = nx.random_layout(G)
+    nx.draw_networkx_nodes(G, pos, node_size=8)
+    nx.draw_networkx_edges(G, pos, edgelist=elarge, width=0.2)
+
+
+    #nx.draw_random(G, with_labels=False, arrows=False,width=0.2, node_size=8)
+    axis('off')
+    draw()
+
+
+
+
 
 def visualize_connectivity(S):
     Ns = len(S.source)
@@ -159,7 +187,11 @@ def add_bias_phasewise(I=None, I_ext=None, sigmas=None):
 
     for tid in arange(I.shape[0]):
         #I[:,nid] = I[:,nid] * sigmas[I[0,nid]+1, nid] + I_ext
-        I[tid,:] = I[tid,:] * sigmas[I[tid,0]-1,:] + I_ext
+        if I[tid,0] == 0:
+            I[tid,:] = I_ext
+        else:
+            #I[tid,:] = I[tid,:] * sigmas[I[tid,0]-1,:] + I_ext
+            I[tid,:] = sigmas[I[tid,0]-1,:] + I_ext
 
     return I
 
@@ -466,7 +498,7 @@ class Brian_Simulator:
         ## cpp mode
         if mode == 'cpp_standalone':
             set_device('cpp_standalone')
-            prefs.devices.cpp_standalone.openmp_threads = 8
+            #prefs.devices.cpp_standalone.openmp_threads = 8
         elif mode == 'cython':
         ## cython mode
             prefs.codegen.target = 'cython'
@@ -475,8 +507,8 @@ class Brian_Simulator:
 
         # control parameters
         observe_window = 100
-        E_record_id = range(self.sample)
-        I_record_id = range(self.sample)
+        E_record_id = range(self.N_E)
+        I_record_id = range(self.N_I)
 
         #Unpack Variables used in brian code
         for key in self.params.keys():
@@ -558,6 +590,7 @@ class Brian_Simulator:
         S_IE.connect(True, p=prob)
         S_EI.connect(True, p=prob)
         S_II.connect('i!=j', p=prob)
+        
 
         #tmp = ((np.arange(len(S))+1) * 4).tolist()
         #S.delay = tmp*ms
@@ -651,9 +684,11 @@ class Brian_Simulator:
         binned_rate_I = (cumsum[window_length:] - cumsum[:-window_length]) / window_length
 
         # plot if debug flag is true
+
         if self.debug:
             std_size = (10, 5)
             stretch_size = (50, 50)
+            unpack_connectivity(S_EE)
 
             figure(figsize=std_size)
             plot(statemon_S_EE.t, transpose(statemon_S_EE.rho[E_record_id]))
@@ -742,7 +777,7 @@ def main():
         'V_threshold':-50,
         'CM':0.001,
         'RM':20.0,
-        'sigma':24,
+        'sigma':17,
         'refrac':0,
         #Synapse model specific constants,
         'rho_init':0.019,
@@ -750,7 +785,7 @@ def main():
         'ca_delay':4.61, #ms
         'Cpre':0.56175,
         'Cpost':1.23964,
-        'eta':0,
+        'eta':1,
         'tau_ca':22.6936,
         'theta_D':1,
         'theta_P':1.3,
@@ -835,8 +870,8 @@ def main():
     input_flag = '7_phase_with_bias'
     
 
-    familiar_individual_sigma = 8
-    novel_individual_sigma = 8
+    familiar_individual_sigma =5.8
+    novel_individual_sigma = 6.2
     individual_sigmas_E_familiar = np.random.normal(0,familiar_individual_sigma,N_E)
     individual_sigmas_I_familiar = np.random.normal(0,familiar_individual_sigma,N_I)
 
@@ -882,7 +917,7 @@ def main():
         I_ext_I= add_bias_phasewise(I_ext_I, mean_I_ext, individual_sigmas_I)
 
 
-    debug = True
+    debug = False
 
 
     # result variables
@@ -891,7 +926,8 @@ def main():
 
     binned_rate_E = np.zeros((simulation_length * 10, param_trial_num))
     binned_rate_I = np.zeros((simulation_length * 10, param_trial_num))
-    rho = np.zeros((sample, simulation_length, param_trial_num))
+    #rho = np.zeros((sample, simulation_length, param_trial_num))
+    rho = np.zeros((N_E, simulation_length, param_trial_num))
     mean_rate_shift =np.zeros((param_trial_num,1))
     print spike_dict
 
