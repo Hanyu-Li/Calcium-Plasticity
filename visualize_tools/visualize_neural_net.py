@@ -1,7 +1,7 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 
-G=nx.random_geometric_graph(1000,0.05)
+G=nx.random_geometric_graph(500,0.05)
 # position is stored as node attribute data for random_geometric_graph
 pos=nx.get_node_attributes(G,'pos')
 

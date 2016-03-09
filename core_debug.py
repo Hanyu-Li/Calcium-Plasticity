@@ -3,6 +3,7 @@ import csv
 import pylab
 from subprocess import call
 import scipy.io as sio
+from scipy.stats import lognorm
 #import numpy.matlib
 from collections import OrderedDict
 
@@ -151,7 +152,18 @@ def add_bias(I=None, sigmas=None):
     for nid in arange(I.shape[1]):
         I[:,nid] = I[:,nid] + sigmas[nid]
     return I
+
 def add_bias_phasewise(I=None, I_ext=None, sigmas=None):
+    #print I.shape, sigmas.shape
+    print I.shape, sigmas.shape
+
+    for tid in arange(I.shape[0]):
+        #I[:,nid] = I[:,nid] * sigmas[I[0,nid]+1, nid] + I_ext
+        I[tid,:] = I[tid,:] * sigmas[I[tid,0]-1,:] + I_ext
+
+    return I
+
+def add_bias_phasewise_old(I=None, I_ext=None, sigmas=None):
     #print I.shape, sigmas.shape
     for nid in arange(I.shape[1]):
         I[:,nid] = I[:,nid] * sigmas[nid] + I_ext
@@ -189,6 +201,22 @@ def analyse_spikes(key=None, spikes=None):
     draw()
     return firing_rate
 
+def lognormal_fit(data=None, vis=False):
+    scatter, loc, mean = lognorm.fit(data)
+    print scatter, log, mean
+    x_fit = np.logspace(0,2,num=25)
+    pdf_fit = lognorm.pdf(x_fit, scatter, loc, mean)
+    if vis:
+        figure()
+        hist(data, bins=x_fit, normed=True)
+        plot(x_fit, pdf_fit)
+        xscale('log')
+        draw()
+        return
+    else:
+        return pdf_fit
+
+
 def analyse_all_parameter_sets(t=None, I=None,spikes=None, rate_model_dist=None):
     fig = figure(figsize=(20,10))
     sample_size = len(spikes)
@@ -204,6 +232,99 @@ def analyse_all_parameter_sets(t=None, I=None,spikes=None, rate_model_dist=None)
     savefig('results/all_2')
 
 def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, rate_model_dist=None, sub=False,ax=None):
+    #print I.shape
+    #print spikes['t']
+    N = len(spikes['t'])
+   
+    baseline = I[0,0]
+    
+    #index = np.where(I[:,0] - baseline != 0)
+    phase_split = np.where(diff(I[:,0] - baseline) != 0)
+    phase_split = np.concatenate(([0],np.squeeze(phase_split)) )
+    #print new_ind
+    phase_num = len(phase_split)
+    #starts = new_ind[0::2]
+    #ends = new_ind[1::2]
+
+    #print starts, ends
+
+    spike_rates = np.zeros((N, phase_num))
+    mean_rates = np.zeros(phase_num)
+    std_rates = np.zeros(phase_num)
+
+
+    # real data
+    scaling_factor = np.ceil(N/rate_model_dist.shape[0])
+    scaled_rate_model_dist = np.tile(rate_model_dist, (scaling_factor, 1))
+    mean_real = np.mean(scaled_rate_model_dist)
+    std_real = np.std(scaled_rate_model_dist)
+    #lognormal_fit(scaled_rate_model_dist)
+
+    for nid in arange(N):
+        all_spike_time = np.asarray(np.sort(spikes['t'][nid]))
+        for pid in arange(phase_num):
+            start_t = double(phase_split[pid]) / 1000
+            if pid == phase_num-1:
+                end_t = len(t)
+            else:
+                end_t = double(phase_split[pid+1]) / 1000
+            phase_spike_time = all_spike_time[np.logical_and(np.less_equal(all_spike_time, end_t), np.greater(all_spike_time, start_t))]
+            #print phase_spike_time
+            if len(phase_spike_time) == 1:
+                firing_rate = 1
+            elif len(phase_spike_time) == 0:
+                firing_rate = 0
+            else:
+                phase_isi = np.diff(phase_spike_time)
+                try:
+                    firing_rate = 1.0 / np.mean(phase_isi)
+                except:
+                    continue
+            spike_rates[nid, pid] = firing_rate
+    spike_rates[np.isnan(spike_rates)] = 0
+    print spike_rates.shape
+
+
+    mean_rates = np.mean(spike_rates, axis=0)
+    std_rates = np.std(spike_rates, axis=0)
+    mean_shift = mean_rates[3] - mean_rates[1]
+
+    #print mean_rates, std_rates
+
+    if sub==False:
+        figure(figsize=(20,10))
+        ax = plt.gca()
+    title(str(key))
+    log_x = True
+    if log_x:
+        bins = np.logspace(0, 2, num=25)
+    else:
+        bins = np.linspace(0, 100, num=25)
+
+
+
+    sample = arange(phase_num)
+    
+    for pid in sample[1::2]:
+        print spike_rates[:,pid].shape
+        pdf = lognormal_fit(spike_rates[:,pid])
+        h = ax.plot(bins, pdf)
+        ax.hist(spike_rates[:,pid], bins=bins,normed=True, histtype='step', color=h[0].get_color(), label='phase %d mean: %.2f, std: %.2f' % (pid, mean_rates[pid], std_rates[pid]))
+
+
+
+    print scaled_rate_model_dist.shape
+    pdf = lognormal_fit(scaled_rate_model_dist)
+    h = ax.plot(bins, pdf)
+    ax.hist(scaled_rate_model_dist, bins=bins,normed=True, histtype='step', color=h[0].get_color(), label='real data mean: %.2f, std: %.2f' % (mean_real, std_real))
+
+    #text(60, 8, 'mean_firing_rate_shift'+str(mean_post-mean_pre))
+    xscale('log')
+    ax.legend(loc=2, fontsize=8)
+    draw()
+
+    return mean_shift
+def analyse_spikes_phasewise_old(t=None, I=None, key=None, spikes=None, rate_model_dist=None, sub=False,ax=None):
     print I.shape
     #print spikes['t']
     N = len(spikes['t'])
@@ -345,7 +466,7 @@ class Brian_Simulator:
         ## cpp mode
         if mode == 'cpp_standalone':
             set_device('cpp_standalone')
-            #prefs.devices.cpp_standalone.openmp_threads = 8
+            prefs.devices.cpp_standalone.openmp_threads = 8
         elif mode == 'cython':
         ## cython mode
             prefs.codegen.target = 'cython'
@@ -543,11 +664,11 @@ class Brian_Simulator:
             figure(figsize=stretch_size)
             subplot(211)
             title('excitatory')
-            plot(spikemon_G_E.t, spikemon_G_E.i, '.k')
+            plot(spikemon_G_E.t, spikemon_G_E.i, '.k', markersize=1)
             xlim([0, self.simulation_length/1000])
             subplot(212)
             title('inhibitory')
-            plot(spikemon_G_I.t, spikemon_G_I.i, '.k')
+            plot(spikemon_G_I.t, spikemon_G_I.i, '.k', markersize=1)
             xlim([0, self.simulation_length/1000])
             savefig('results/b.png')
 
@@ -603,7 +724,7 @@ def main():
     params = {
         'cpre_0':0.1,
         'cpost_0':0.1,
-        'rho_0':0.6,
+        'rho_0':0.5,
         'c':0.2,
         'dummy':0.2,
         'Ipre':0,
@@ -621,7 +742,7 @@ def main():
         'V_threshold':-50,
         'CM':0.001,
         'RM':20.0,
-        'sigma':15,
+        'sigma':24,
         'refrac':0,
         #Synapse model specific constants,
         'rho_init':0.019,
@@ -689,7 +810,7 @@ def main():
 
 
     # Control variables
-    simulation_length = 8000
+    simulation_length = 10000
     stair_length = 500
     resets = 1
 
@@ -697,8 +818,12 @@ def main():
     N_I = 250
     sample = 10
 
+    ref_data = sio.loadmat('data/nov_stim_rates.mat')
+    rate_model_dist = ref_data['rnov']
+    #lognormal_fit(rate_model_dist)
+
     #12 with all excitatory, 15 with E:I=4:1 
-    mean_I_ext = 17
+    mean_I_ext = 15
 
     # input pattern candidates
 
@@ -706,12 +831,20 @@ def main():
     #input_flag = 'stable'
     #input_flag = 'stable_with_bias'
     #input_flag = '4_phase'
-    input_flag = '4_phase_with_bias'
+    #input_flag = '4_phase_with_bias'
+    input_flag = '7_phase_with_bias'
     
 
-    base_private_sigma = 8
-    private_sigmas_E = np.random.normal(0,base_private_sigma,N_E)
-    private_sigmas_I = np.random.normal(0,base_private_sigma,N_I)
+    familiar_individual_sigma = 8
+    novel_individual_sigma = 8
+    individual_sigmas_E_familiar = np.random.normal(0,familiar_individual_sigma,N_E)
+    individual_sigmas_I_familiar = np.random.normal(0,familiar_individual_sigma,N_I)
+
+    individual_sigmas_E_novel = np.random.normal(0,novel_individual_sigma,N_E)
+    individual_sigmas_I_novel = np.random.normal(0,novel_individual_sigma,N_I)
+
+    individual_sigmas_E = np.vstack((individual_sigmas_E_familiar, individual_sigmas_E_novel))
+    individual_sigmas_I = np.vstack((individual_sigmas_I_familiar, individual_sigmas_I_novel))
 
 
     if input_flag == 'stair':
@@ -724,8 +857,8 @@ def main():
         I_ext_I= build_input([mean_I_ext], [0,1], simulation_length, N_I)
 
     elif input_flag == 'stable_with_bias':
-        I_ext_E= add_bias(I_ext_E_stable, private_sigmas_E)
-        I_ext_I= add_bias(I_ext_I_stable, private_sigmas_I)
+        I_ext_E= add_bias(I_ext_E_stable, individual_sigmas_E_familiar)
+        I_ext_I= add_bias(I_ext_I_stable, individual_sigmas_I_familiar)
 
     elif input_flag == '4_phase':
         I_ext_E= build_input([0,1,0,1], [0, 0.25,0.5,0.75, 1], simulation_length, N_E)
@@ -736,10 +869,20 @@ def main():
         I_ext_E= build_input([0,1,0,1], [0, 0.25,0.5,0.75, 1], simulation_length, N_E)
         I_ext_I= build_input([0,1,0,1], [0, 0.25,0.5,0.75, 1], simulation_length, N_I)
 
-        I_ext_E= add_bias_phasewise(I_ext_E, mean_I_ext, private_sigmas_E)
-        I_ext_I= add_bias_phasewise(I_ext_I, mean_I_ext, private_sigmas_I)
+        I_ext_E= add_bias_phasewise_old(I_ext_E, mean_I_ext, individual_sigmas_E_familiar)
+        I_ext_I= add_bias_phasewise_old(I_ext_I, mean_I_ext, individual_sigmas_I_familiar)
 
-    debug = False
+    elif input_flag == '7_phase_with_bias':
+        I_ext_E= build_input([0,1,0,1,0,2,0], [0, 0.15,0.3,0.45,0.6,0.75, 0.9, 1], simulation_length, N_E)
+        I_ext_I= build_input([0,1,0,1,0,2,0], [0, 0.15,0.3,0.45,0.6,0.75, 0.9, 1], simulation_length, N_I)
+        I_ext_E= build_input([0,1,0,1,0,2,0], [0, 0.4,0.5,0.6,0.7,0.8, 0.9, 1], simulation_length, N_E)
+        I_ext_I= build_input([0,1,0,1,0,2,0], [0, 0.4,0.5,0.6,0.7,0.8, 0.9, 1], simulation_length, N_I)
+
+        I_ext_E= add_bias_phasewise(I_ext_E, mean_I_ext, individual_sigmas_E)
+        I_ext_I= add_bias_phasewise(I_ext_I, mean_I_ext, individual_sigmas_I)
+
+
+    debug = True
 
 
     # result variables
@@ -765,10 +908,7 @@ def main():
     #for i in arange(param_trial_num):
     for i, key in enumerate(spike_dict):
         cpp_directory = 'output_'+str(i)
-        #param_diffs['sigma'] = 5*(i+1)
-        #params['sigma'] = i * 5
 
-        #print i, key
         (binned_rate_E[:,i], binned_rate_I[:,i], rho[:,:,i], spike_dict[key]) = sim.run(key, mode=mode, resets=resets, cpp_directory=cpp_directory)
         #call(['rm','-r',cpp_directory])
 
@@ -776,21 +916,25 @@ def main():
     #print spikes['t'][0]
     # spike analysis
     #print len(spike_dict)
-    ref_data = sio.loadmat('data/nov_stim_rates.mat')
-    rate_model_dist = ref_data['rnov']
     
     if input_flag == '4_phase_with_bias':
         analyse_all_parameter_sets(t, I_ext_E, spike_dict,rate_model_dist) 
         #for key in spike_dict:
         #    print "Key:",key
         #    analyse_spikes_phasewise(t, I_ext_E,key, spike_dict[key], rate_model_dist)
+    elif input_flag == '7_phase_with_bias':
+        analyse_all_parameter_sets(t, I_ext_E, spike_dict,rate_model_dist) 
+        #for key in spike_dict:
+            #print "Key:",key
+            #analyse_spikes_phasewise(t, I_ext_E,key, spike_dict[key], rate_model_dist)
+
     else:
         for key in spike_dict:
             #analyse_spikes_phasewise(t, I_ext_E,val)
             analyse_spikes(key, spike_dict[key])
 
-    snapshot = simulation_length / 4 + 1
-    visualize_I_ext(I_ext_E[snapshot,:])
+    #snapshot = simulation_length / 4 + 1
+    #visualize_I_ext(I_ext_E[snapshot,:])
     visualize_all(I_ext_E, binned_rate_E, rho, t, resets, spike_dict.keys(), input_flag)
     #visualize_tI_curve(I_ext_E_stable, t)
     #visualize_IF_curve(I_ext_E_stable, binned_rate_E, t)
