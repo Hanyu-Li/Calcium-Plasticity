@@ -249,7 +249,7 @@ def lognormal_fit(data=None, vis=False):
         return pdf_fit
 
 
-def analyse_all_parameter_sets(t=None, I=None,spikes=None, rate_model_dist=None):
+def analyse_all_parameter_sets(t=None, I=None,spikes=None, rate_model_dist=None, params=None):
     fig = figure(figsize=(20,10))
     sample_size = len(spikes)
     grid_width = np.ceil(np.sqrt(sample_size))
@@ -260,10 +260,10 @@ def analyse_all_parameter_sets(t=None, I=None,spikes=None, rate_model_dist=None)
         ax = fig.add_subplot(grid_height, grid_width, i)
         print "Key:",key
         i = i + 1
-        analyse_spikes_phasewise(t, I,key, spikes[key], rate_model_dist,sub=True, ax=ax)
+        analyse_spikes_phasewise(t, I,key, spikes[key], rate_model_dist,params=params,sub=True, ax=ax)
     savefig('results/all_2')
 
-def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, rate_model_dist=None, sub=False,ax=None):
+def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, rate_model_dist=None,params=None, sub=False,ax=None):
     #print I.shape
     #print spikes['t']
     N = len(spikes['t'])
@@ -352,6 +352,9 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, rate_model_d
 
     #text(60, 8, 'mean_firing_rate_shift'+str(mean_post-mean_pre))
     xscale('log')
+    #ax.text(80, 8, 'Mean_I_ext: %.2f, Shared_sigma: %.2f, Familiar_individual_sigma: %.2f, Novel_individual_sigma: %.2f' % (params['mean_I_ext'],params['sigma'], params['familiar_individual_sigma'],params['novel_individual_sigma']))
+    #ax.plot([], [], color='w',label='Mean_I_ext: %.2f, Shared_sigma: %.2f, Familiar_individual_sigma: %.2f, Novel_individual_sigma: %.2f' % (params['mean_I_ext'],params['sigma'], params['familiar_individual_sigma'],params['novel_individual_sigma']))
+
     ax.legend(loc=2, fontsize=8)
     draw()
 
@@ -476,7 +479,24 @@ def build_spike_dict(param_diffs):
                 if v != 0:
                     spike_dict[(key, v)] = None
     return spike_dict
-        
+''' 
+def build_multivar_spike_dict(param_diffs):
+    spike_dict = OrderedDict()
+    # first add a dummy one, 
+    spike_dict['Baseline'] = None
+    for key, val in param_diffs.iteritems():
+        if val != 0:
+            param_trial = len(val)-1
+            if param_sets == None:
+                param_sets =  
+            print key,val
+            for v in val:
+                if v != 0:
+
+                    spike_dict[(key, v)] = None
+            
+'''
+
 
 
 
@@ -484,17 +504,17 @@ def build_spike_dict(param_diffs):
 
 
 class Brian_Simulator:
-    def __init__(self, simulation_length, N_E, N_I,sample, I_ext_E, I_ext_I, params, debug):
+    def __init__(self, simulation_length, N_E, N_I,sample, params, debug):
         self.simulation_length = simulation_length
         self.N_E = N_E
         self.N_I = N_I
-        self.I_ext_E = I_ext_E
-        self.I_ext_I = I_ext_I
+        #self.I_ext_E = I_ext_E
+        #self.I_ext_I = I_ext_I
         self.sample = sample
         self.params = params
         self.debug = debug
 
-    def run(self, param_diff, mode='cython', resets=1, cpp_directory='output_0'):
+    def run(self, param_diff, mode='cython',I_ext_E=None, I_ext_I=None, resets=1, cpp_directory='output_0'):
         ## cpp mode
         if mode == 'cpp_standalone':
             set_device('cpp_standalone')
@@ -522,8 +542,8 @@ class Brian_Simulator:
             exec(exec_str)
 
         
-        stim_E = TimedArray(self.I_ext_E, dt=1*ms)
-        stim_I = TimedArray(self.I_ext_I, dt=1*ms)
+        stim_E = TimedArray(I_ext_E, dt=1*ms)
+        stim_I = TimedArray(I_ext_I, dt=1*ms)
         lif_eqs_E = '''
         dv/dt = (- (v+70) + stim_E(t,i)) / tau_lif + sigma*xi*tau_lif**-0.5 : 1
         '''
@@ -777,7 +797,6 @@ def main():
         'V_threshold':-50,
         'CM':0.001,
         'RM':20.0,
-        'sigma':17,
         'refrac':0,
         #Synapse model specific constants,
         'rho_init':0.019,
@@ -797,7 +816,13 @@ def main():
         'taupost':22,
         'tau_ca':22, #*ms
         'rho_star':0.5,
-        'D':4.6098}
+        'D':4.6098,
+        'mean_I_ext':14,
+        'sigma':17,
+        'familiar_individual_sigma':5.5,
+        'novel_individual_sigma':5}
+
+
 
     # additively applied to params
     param_diffs = {
@@ -821,7 +846,6 @@ def main():
         'V_threshold':0,
         'CM':0,
         'RM':0,
-        'sigma':0,
         'refrac':0,
         #Synapse model specific constants,
         'rho_init':0,
@@ -841,11 +865,17 @@ def main():
         'taupost':0,
         'tau_ca':0, #*ms
         'rho_star':0,
-        'D':0}
+        'D':0,
+        'mean_I_ext':0,
+        'sigma':0,
+        'familiar_individual_sigma':0,
+        'novel_individual_sigma':0}
+        
 
 
     # Control variables
     simulation_length = 10000
+
     stair_length = 500
     resets = 1
 
@@ -858,7 +888,6 @@ def main():
     #lognormal_fit(rate_model_dist)
 
     #12 with all excitatory, 15 with E:I=4:1 
-    mean_I_ext = 15
 
     # input pattern candidates
 
@@ -870,8 +899,10 @@ def main():
     input_flag = '7_phase_with_bias'
     
 
-    familiar_individual_sigma =5.8
-    novel_individual_sigma = 6.2
+    mean_I_ext = params['mean_I_ext']
+    familiar_individual_sigma =params['familiar_individual_sigma']
+    novel_individual_sigma = params['novel_individual_sigma']
+
     individual_sigmas_E_familiar = np.random.normal(0,familiar_individual_sigma,N_E)
     individual_sigmas_I_familiar = np.random.normal(0,familiar_individual_sigma,N_I)
 
@@ -922,6 +953,8 @@ def main():
 
     # result variables
     spike_dict = build_spike_dict(param_diffs) # store spike trains for each parameter set
+
+    #spike_dict = build_multivar_spike_dict(param_diffs) # store spike trains for each parameter set
     param_trial_num = len(spike_dict)
 
     binned_rate_E = np.zeros((simulation_length * 10, param_trial_num))
@@ -940,12 +973,12 @@ def main():
     t = arange(simulation_length)
     
     sim = Brian_Simulator(simulation_length=simulation_length, N_E=N_E,N_I=N_I,sample=sample,
-            I_ext_E=I_ext_E, I_ext_I=I_ext_I, params=params, debug=debug)
+             params=params, debug=debug)
     #for i in arange(param_trial_num):
     for i, key in enumerate(spike_dict):
         cpp_directory = 'output_'+str(i)
 
-        (binned_rate_E[:,i], binned_rate_I[:,i], rho[:,:,i], spike_dict[key]) = sim.run(key, mode=mode, resets=resets, cpp_directory=cpp_directory)
+        (binned_rate_E[:,i], binned_rate_I[:,i], rho[:,:,i], spike_dict[key]) = sim.run(key, mode=mode, I_ext_E=I_ext_E, I_ext_I=I_ext_I, resets=resets, cpp_directory=cpp_directory)
         #call(['rm','-r',cpp_directory])
 
 
@@ -959,7 +992,7 @@ def main():
         #    print "Key:",key
         #    analyse_spikes_phasewise(t, I_ext_E,key, spike_dict[key], rate_model_dist)
     elif input_flag == '7_phase_with_bias':
-        analyse_all_parameter_sets(t, I_ext_E, spike_dict,rate_model_dist) 
+        analyse_all_parameter_sets(t, I_ext_E, spike_dict,rate_model_dist, params) 
         #for key in spike_dict:
             #print "Key:",key
             #analyse_spikes_phasewise(t, I_ext_E,key, spike_dict[key], rate_model_dist)
