@@ -260,7 +260,7 @@ def add_bias(I=None, sigmas=None):
 
 def add_bias_phasewise(I=None, baseline_I_ext=None, I_ext=None, sigmas=None):
     #print I.shape, sigmas.shape
-    print I.shape, sigmas.shape
+    #print I.shape, sigmas.shape
 
     for tid in arange(I.shape[0]):
         #I[:,nid] = I[:,nid] * sigmas[I[0,nid]+1, nid] + I_ext
@@ -282,7 +282,7 @@ def add_bias_phasewise_old(I=None, I_ext=None, sigmas=None):
 
 def analyse_spikes(key=None, spikes=None):
     N = len(spikes['t'])
-    print N
+    #print N
     #isi = []
     firing_rate = np.zeros((N, 1))
     for nid in arange(N):
@@ -336,14 +336,19 @@ def analyse_all_parameter_sets(t=None, I=None,spikes=None, R_fam=None,R_nov=None
     grid_height = np.ceil(sample_size/grid_width)
 
     i = 1
+
+    f_rec = open('results/stat.csv','w')
+    writer = csv.writer(f_rec)
+    writer.writerow(['','1st familiar fit error','2nd familiar fit error', 'novel fit error'])
     for key in spikes:
         ax = fig.add_subplot(grid_height, grid_width, i)
         print "Key:",key
         i = i + 1
-        analyse_spikes_phasewise(t, I,key, spikes[key],R_fam,R_nov,params=params,sub=True, ax=ax)
+        analyse_spikes_phasewise(t, I,key, spikes[key],R_fam,R_nov,params=params,sub=True, ax=ax, writer=writer)
     savefig('results/all_2')
+    f_rec.close()
 
-def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R_nov=None, params=None, sub=False,ax=None):
+def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R_nov=None, params=None, sub=False,ax=None, writer=None):
     N = len(spikes['t'])
    
     baseline = I[0,0]
@@ -361,14 +366,6 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
     spike_rates = np.zeros((N, phase_num))
     mean_rates = np.zeros(phase_num)
     std_rates = np.zeros(phase_num)
-
-
-    # real data
-    #scaling_factor = np.ceil(N/real_data.shape[0])
-    #scaled_real_data = np.tile(real_data, (scaling_factor, 1))
-    #mean_real = np.mean(scaled_real_data)
-    #std_real = np.std(scaled_real_data)
-
 
 
     R_fam = R_fam.reshape((-1,1))
@@ -427,10 +424,14 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
 
 
 
+    pdf_fit_error = np.zeros(3)
+    #writer.writerow(spikemon_G_E.i)
+    #f3.close()
     sample = arange(phase_num)
     
     pdf_fam = lognormal_fit(bins, R_fam)
     pdf_nov = lognormal_fit(bins, R_nov)
+
     h = ax.plot(bins, pdf_fam)
     ax.hist(R_fam, bins=bins,normed=True, histtype='step', color=h[0].get_color(),label='familiar data mean: %.2f, std: %.2f' % (mean_fam, std_fam))
 
@@ -438,9 +439,19 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
     ax.hist(R_nov, bins=bins,normed=True, histtype='step', color=h[0].get_color(), label='novel data mean: %.2f, std: %.2f' % (mean_nov, std_nov))
     for pid in sample[1::2]:
         #print spike_rates[:,pid].shape
-        #pdf = lognormal_fit(spike_rates[:,pid])
-        #h = ax.plot(bins, pdf)
-        ax.hist(spike_rates[:,pid], bins=bins,normed=True, histtype='step', label='phase %d mean: %.2f, std: %.2f' % (pid, mean_rates[pid], std_rates[pid]))
+        pdf = lognormal_fit(bins, spike_rates[:,pid])
+        h = ax.plot(bins, pdf)
+        ax.hist(spike_rates[:,pid], bins=bins,normed=True, histtype='step',color=h[0].get_color(), label='phase %d mean: %.2f, std: %.2f' % (pid, mean_rates[pid], std_rates[pid]))
+        if pid != 5:
+            pdf_fit_error[(pid-1)/2] = np.linalg.norm(pdf-pdf_fam)
+        else:
+            pdf_fit_error[(pid-1)/2] = np.linalg.norm(pdf-pdf_nov)
+    print pdf_fit_error
+    writer.writerow([key]+pdf_fit_error.tolist())
+            
+
+
+
 
     '''
     for pid in sample[1::2]:
@@ -493,15 +504,15 @@ def build_multivar_spike_dict(param_diffs):
             #print key, val
             temp_list = []
             for v in val:
-                if v != 0:
-                    temp_list.append((key,v))
+                #if v != 0:
+                temp_list.append((key,v))
                     #spike_dict[(key, v)] = None
             temp_lists.append(temp_list)
     #print temp_lists
     for i in itertools.product(*temp_lists):
         #print i
         spike_dict[i] = None
-    spike_dict['Baseline'] = None
+    #spike_dict['Baseline'] = None
     return spike_dict
     '''
     keys = []
@@ -589,9 +600,9 @@ class Brian_Simulator:
             exec(exec_str)
         if param_diff != 'Baseline':
             for key in param_diff:
-                print  key
+                #print  key
                 exec_str = key[0] + " = "+ key[0] +"+"+str(key[1])
-                #print exec_str
+                print exec_str
                 exec(exec_str)
         '''
         for key in self.params.keys():
@@ -939,14 +950,14 @@ def main():
         'baseline_I_ext_I':0,
         'mean_I_ext_E':0,
         'mean_I_ext_I':0,
-        'sigma':[-0.1,0,0.1],
-        'familiar_individual_sigma':[-0.2,0,0.2],
+        'sigma':0,
+        'familiar_individual_sigma':0,
         'novel_individual_sigma':0}
         
 
 
     # Control variables
-    simulation_length = 500
+    simulation_length = 1000
 
     stair_length = 500
     resets = 1
@@ -1038,7 +1049,7 @@ def main():
 
     spike_dict = build_multivar_spike_dict(param_diffs) # store spike trains for each parameter set
 
-    print spike_dict
+    #print spike_dict
     param_trial_num = len(spike_dict)
 
     binned_rate_E = np.zeros((simulation_length * 10, param_trial_num))
@@ -1062,7 +1073,7 @@ def main():
     for i, key in enumerate(spike_dict):
         cpp_directory = 'output_'+str(i)
 
-        print key
+        #print key
         (binned_rate_E[:,i], binned_rate_I[:,i], rho[:,:,i], spike_dict[key]) = sim.run(key, mode=mode, I_ext_E=I_ext_E, I_ext_I=I_ext_I, resets=resets, cpp_directory=cpp_directory)
         #call(['rm','-r',cpp_directory])
 
