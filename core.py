@@ -109,8 +109,8 @@ def unpack_raw_data(filepath):
 
     Norm_R_F_I = (R_fam_inh - np.mean(R_nov_inh, axis=0)) / np.std(R_fam_inh, axis=0)
     Norm_R_N_I = (R_nov_inh - np.mean(R_nov_inh, axis=0)) / np.std(R_nov_inh, axis=0)
-    return (Norm_R_F_E, Norm_R_F_I, Norm_R_N_E, Norm_R_N_I)
-    #return (R_fam_exc, R_fam_inh, R_nov_exc, R_nov_inh)
+    #return (Norm_R_F_E, Norm_R_F_I, Norm_R_N_E, Norm_R_N_I)
+    return (R_fam_exc, R_fam_inh, R_nov_exc, R_nov_inh)
 
 
 
@@ -135,7 +135,7 @@ def visualize_connectivity(S):
     ylabel('Target neuron index')
 def visualize_all(I=None, F=None, rho=None, t=None, resets=None, legends=None, input_flag=None):
     fig = figure(figsize=(20, 10))
-    if input_flag=='4_phase_with_bias':
+    if input_flag=='7_phase_with_bias':
         plot_num = 3
         ax4 = None
     else:
@@ -325,8 +325,9 @@ def lognormal_fit(x_fit = None, data=None, vis=False):
     else:
         return pdf_fit
 
-def normalize_distribution(spikes=None):
-    spikes = (spikes - np.mean(spikes,axis=0))/ np.std(spikes, axis=0)
+def normalize_distribution(spikes=None, nov_mean=None):
+    spikes = (spikes - nov_mean)/ np.std(spikes, axis=0)
+    #spikes = (spikes - np.mean(spikes,axis=0))/ np.std(spikes, axis=0)
     return spikes
 
 def analyse_all_parameter_sets(t=None, I=None,spikes=None, R_fam=None,R_nov=None, params=None):
@@ -400,7 +401,11 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
             spike_rates[nid, pid] = firing_rate
     spike_rates[np.isnan(spike_rates)] = 0
     print spike_rates.shape
-    spike_rates = normalize_distribution(spike_rates)
+
+    # find novel mean
+    #nov_mean = mean(spike_rates[:,5])
+    #spike_rates = normalize_distribution(spike_rates, nov_mean)
+
     print spike_rates.shape
 
    
@@ -420,28 +425,44 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
     if log_x:
         bins = np.logspace(-1, 2, num=25)
     else:
-        bins = np.linspace(-2,8, num=51)
+        bins = np.linspace(0,100, num=51)
+        #bins = np.linspace(-2,8, num=51)
 
 
 
     pdf_fit_error = np.zeros(3)
+    dist_fit_error = np.zeros(3)
     #writer.writerow(spikemon_G_E.i)
     #f3.close()
     sample = arange(phase_num)
     
+    print R_fam, R_nov
     pdf_fam = lognormal_fit(bins, R_fam)
     pdf_nov = lognormal_fit(bins, R_nov)
 
+
+    '''
     h = ax.plot(bins, pdf_fam)
     ax.hist(R_fam, bins=bins,normed=True, histtype='step', color=h[0].get_color(),label='familiar data mean: %.2f, std: %.2f' % (mean_fam, std_fam))
-
     h = ax.plot(bins, pdf_nov)
     ax.hist(R_nov, bins=bins,normed=True, histtype='step', color=h[0].get_color(), label='novel data mean: %.2f, std: %.2f' % (mean_nov, std_nov))
+    '''
+
+    ax.hist(R_fam, bins=bins,normed=True, histtype='step',label='familiar data mean: %.2f, std: %.2f' % (mean_fam, std_fam))
+
+    ax.hist(R_nov, bins=bins,normed=True, histtype='step',label='novel data mean: %.2f, std: %.2f' % (mean_nov, std_nov))
+
+
+
+
+
     for pid in sample[1::2]:
         #print spike_rates[:,pid].shape
         pdf = lognormal_fit(bins, spike_rates[:,pid])
-        h = ax.plot(bins, pdf)
-        ax.hist(spike_rates[:,pid], bins=bins,normed=True, histtype='step',color=h[0].get_color(), label='phase %d mean: %.2f, std: %.2f' % (pid, mean_rates[pid], std_rates[pid]))
+        #h = ax.plot(bins, pdf)
+        #ax.hist(spike_rates[:,pid], bins=bins,normed=True, histtype='step',color=h[0].get_color(), label='phase %d mean: %.2f, std: %.2f' % (pid, mean_rates[pid], std_rates[pid]))
+
+        ax.hist(spike_rates[:,pid], bins=bins,normed=True, histtype='step', label='phase %d mean: %.2f, std: %.2f' % (pid, mean_rates[pid], std_rates[pid]))
         if pid != 5:
             pdf_fit_error[(pid-1)/2] = np.linalg.norm(pdf-pdf_fam)
         else:
@@ -471,8 +492,8 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
     xscale('log')
     '''
 
-    #ax.text(80, 8, 'Mean_I_ext: %.2f, Shared_sigma: %.2f, Familiar_individual_sigma: %.2f, Novel_individual_sigma: %.2f' % (params['mean_I_ext'],params['sigma'], params['familiar_individual_sigma'],params['novel_individual_sigma']))
-    #ax.plot([], [], color='w',label='Mean_I_ext: %.2f, Shared_sigma: %.2f, Familiar_individual_sigma: %.2f, Novel_individual_sigma: %.2f' % (params['mean_I_ext'],params['sigma'], params['familiar_individual_sigma'],params['novel_individual_sigma']))
+    #ax.text(80, 8, 'Mean_I_ext: %.2f, Shared_sigma: %.2f, Familiar_individual_sigma: %.2f, Novel_individual_sigma: %.2f' % (params['mean_I_ext'],params['sigma'], params['familiar_individual_sigma'],params['familiar_individual_sigma']))
+    #ax.plot([], [], color='w',label='Mean_I_ext: %.2f, Shared_sigma: %.2f, Familiar_individual_sigma: %.2f, Novel_individual_sigma: %.2f' % (params['mean_I_ext'],params['sigma'], params['familiar_individual_sigma'],params['familiar_individual_sigma']))
 
     ax.legend(loc=2, fontsize=8)
     draw()
@@ -562,8 +583,6 @@ def build_multivar_spike_dict(param_diffs):
 
 
 
-
-
 class Brian_Simulator:
     def __init__(self, simulation_length, N_E, N_I,sample, params, debug):
         self.simulation_length = simulation_length
@@ -575,6 +594,30 @@ class Brian_Simulator:
         self.params = params
         self.debug = debug
 
+    def build_7_phase_input(self, baseline_I_ext_E=None, baseline_I_ext_I=None, mean_I_ext_E=None, mean_I_ext_I=None, familiar_individual_sigma=None):
+
+
+        individual_sigmas_E_familiar = np.random.normal(0,familiar_individual_sigma,self.N_E)
+        individual_sigmas_I_familiar = np.random.normal(0,familiar_individual_sigma,self.N_I)
+
+        individual_sigmas_E_novel = np.random.normal(0,familiar_individual_sigma,self.N_E)
+        individual_sigmas_I_novel = np.random.normal(0,familiar_individual_sigma,self.N_I)
+
+        individual_sigmas_E = np.vstack((individual_sigmas_E_familiar, individual_sigmas_E_novel))
+        individual_sigmas_I = np.vstack((individual_sigmas_I_familiar, individual_sigmas_I_novel))
+
+
+
+        I_ext_E= build_input([0,1,0,1,0,2,0], [0, 0.4,0.5,0.6,0.7,0.8, 0.9, 1], self.simulation_length, self.N_E)
+        individual_sigmas_I = 0*individual_sigmas_I
+        I_ext_I= build_input([0,1,0,1,0,2,0], [0, 0.4,0.5,0.6,0.7,0.8, 0.9, 1], self.simulation_length, self.N_I)
+
+        I_ext_E= add_bias_phasewise(I_ext_E, baseline_I_ext_E, mean_I_ext_E, individual_sigmas_E)
+        I_ext_I= add_bias_phasewise(I_ext_I, baseline_I_ext_I, mean_I_ext_I, individual_sigmas_I)
+        return (I_ext_E, I_ext_I)
+
+
+
     def run(self, param_diff, mode='cython',I_ext_E=None, I_ext_I=None, resets=1, cpp_directory='output_0'):
         ## cpp mode
         if mode == 'cpp_standalone':
@@ -584,7 +627,6 @@ class Brian_Simulator:
         ## cython mode
             prefs.codegen.target = 'cython'
 
-        start_scope()
         # control parameters
         observe_window = 100
         E_record_id = range(self.N_E)
@@ -604,6 +646,8 @@ class Brian_Simulator:
                 exec_str = key[0] + " = "+ key[0] +"+"+str(key[1])
                 print exec_str
                 exec(exec_str)
+        I_ext_E, I_ext_I = self.build_7_phase_input(baseline_I_ext_E, baseline_I_ext_I, mean_I_ext_E, mean_I_ext_I, familiar_individual_sigma)
+        
         '''
         for key in self.params.keys():
             if key == param_diff[0]:
@@ -617,6 +661,7 @@ class Brian_Simulator:
 
         
         '''
+        start_scope()
         stim_E = TimedArray(I_ext_E, dt=1*ms)
         stim_I = TimedArray(I_ext_I, dt=1*ms)
         lif_eqs_E = '''
@@ -899,8 +944,7 @@ def main():
         'mean_I_ext_E':21,
         'mean_I_ext_I':50,
         'sigma':20,
-        'familiar_individual_sigma':5.6,
-        'novel_individual_sigma':5.6}
+        'familiar_individual_sigma':5.3}
 
 
 
@@ -948,16 +992,21 @@ def main():
         'D':0,
         'baseline_I_ext_E':0,
         'baseline_I_ext_I':0,
+
+        #'mean_I_ext_E':0,
+        #'mean_I_ext_I':0,
+        #'sigma': 0,
+        #'familiar_individual_sigma':0}
+
         'mean_I_ext_E':0,
         'mean_I_ext_I':0,
         'sigma':0,
-        'familiar_individual_sigma':0,
-        'novel_individual_sigma':0}
+        'familiar_individual_sigma':0}
         
 
 
     # Control variables
-    simulation_length = 1000
+    simulation_length = 5000
 
     stair_length = 500
     resets = 1
@@ -991,13 +1040,12 @@ def main():
     mean_I_ext_E = params['mean_I_ext_E']
     mean_I_ext_I = params['mean_I_ext_I']
     familiar_individual_sigma =params['familiar_individual_sigma']
-    novel_individual_sigma = params['novel_individual_sigma']
 
     individual_sigmas_E_familiar = np.random.normal(0,familiar_individual_sigma,N_E)
     individual_sigmas_I_familiar = np.random.normal(0,familiar_individual_sigma,N_I)
 
-    individual_sigmas_E_novel = np.random.normal(0,novel_individual_sigma,N_E)
-    individual_sigmas_I_novel = np.random.normal(0,novel_individual_sigma,N_I)
+    individual_sigmas_E_novel = np.random.normal(0,familiar_individual_sigma,N_E)
+    individual_sigmas_I_novel = np.random.normal(0,familiar_individual_sigma,N_I)
 
     individual_sigmas_E = np.vstack((individual_sigmas_E_familiar, individual_sigmas_E_novel))
     individual_sigmas_I = np.vstack((individual_sigmas_I_familiar, individual_sigmas_I_novel))
