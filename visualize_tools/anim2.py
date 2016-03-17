@@ -3,7 +3,7 @@ import random
 import pylab
 from matplotlib.pyplot import pause
 import networkx as nx
-pylab.ion()
+#pylab.ion()
 
 graph = nx.Graph()
 node_number = 0

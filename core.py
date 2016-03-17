@@ -8,14 +8,17 @@ from scipy.stats import lognorm
 from collections import OrderedDict
 import networkx as nx
 import itertools
+import json
+from networkx.readwrite import json_graph
 
 #get_ipython().magic(u'matplotlib inline')
 
-def unpack_EI_connectivity(S_EE, S_IE, S_EI, S_II, N_E, N_I):
+def unpack_EI_connectivity(S_EE, S_IE, S_EI, S_II, N_E, N_I, statemon_EE_rho):
     #print S.i
     #print S.j
     #print S.rho
-    print S_IE.i, S_IE.j
+    print S_IE.i, S_IE.j, statemon_EE_rho.shape
+    T = statemon_EE_rho.shape[1]
     S_IE_j_shift = np.asarray(S_IE.j) + N_E
     S_EI_i_shift = np.asarray(S_EI.i) + N_E
     S_II_i_shift = np.asarray(S_II.i) + N_E
@@ -29,24 +32,51 @@ def unpack_EI_connectivity(S_EE, S_IE, S_EI, S_II, N_E, N_I):
     print S_i, S_j, S_w
 
 
-    connectivity = zip(S_i, S_j, S_w)
-    #print connectivity
-    #G = nx.from_edgelist(connectivity)
-    #pos = nx.get_node_attributes(G, 'pos')
+   
+    thresh = 0.5 * S_EE.w[0]
+    print thresh
+
+    ### All
+    #connectivity = zip(S_i, S_j, S_w)
+    #trimmed_connectivity = []
+    #for conn in connectivity:
+    #    print conn
+    #    if conn[2] > thresh:
+    #        trimmed_connectivity.append(conn)
+
+
+    ## EE only
+    EE_connectivity = zip(S_EE.i, S_EE.j, S_EE.rho)
+    thresh = 0.5
+    trimmed_connectivity = []
+    for conn in EE_connectivity:
+        print conn
+        if conn[2] > thresh:
+            trimmed_connectivity.append(conn)
+
     G = nx.Graph()
-    G.add_weighted_edges_from(connectivity)
+    G.add_weighted_edges_from(trimmed_connectivity)
     figure(figsize=(40,20))
-    thresh = 0.6
+    d = json_graph.node_link_data(G)
+    json.dump(d, open('d3js/connectivity.json','w'))
+    
+
+    axis('off')
+    pos = nx.random_layout(G)
+    nx.draw_networkx_nodes(G, pos, node_size=8)
+    
     elarge=[(u,v) for (u,v,d) in G.edges(data=True) if d['weight'] > thresh]
     esmall=[(u,v) for (u,v,d) in G.edges(data=True) if d['weight'] <=thresh]
     pos = nx.random_layout(G)
     nx.draw_networkx_nodes(G, pos, node_size=8)
     nx.draw_networkx_edges(G, pos, edgelist=elarge, width=0.2)
-
-
     #nx.draw_random(G, with_labels=False, arrows=False,width=0.2, node_size=8)
     axis('off')
     draw()
+   
+
+
+
 def unpack_connectivity(S):
     #print S.i
     #print S.j
@@ -431,7 +461,7 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
 
 
     pdf_fit_error = np.zeros(3)
-    dist_fit_error = np.zeros(3)
+    hist_fit_error = np.zeros(3)
     #writer.writerow(spikemon_G_E.i)
     #f3.close()
     sample = arange(phase_num)
@@ -448,9 +478,9 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
     ax.hist(R_nov, bins=bins,normed=True, histtype='step', color=h[0].get_color(), label='novel data mean: %.2f, std: %.2f' % (mean_nov, std_nov))
     '''
 
-    ax.hist(R_fam, bins=bins,normed=True, histtype='step',label='familiar data mean: %.2f, std: %.2f' % (mean_fam, std_fam))
+    hf = ax.hist(R_fam, bins=bins,normed=True, histtype='step',label='familiar data mean: %.2f, std: %.2f' % (mean_fam, std_fam))
 
-    ax.hist(R_nov, bins=bins,normed=True, histtype='step',label='novel data mean: %.2f, std: %.2f' % (mean_nov, std_nov))
+    hn = ax.hist(R_nov, bins=bins,normed=True, histtype='step',label='novel data mean: %.2f, std: %.2f' % (mean_nov, std_nov))
 
 
 
@@ -462,13 +492,16 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
         #h = ax.plot(bins, pdf)
         #ax.hist(spike_rates[:,pid], bins=bins,normed=True, histtype='step',color=h[0].get_color(), label='phase %d mean: %.2f, std: %.2f' % (pid, mean_rates[pid], std_rates[pid]))
 
-        ax.hist(spike_rates[:,pid], bins=bins,normed=True, histtype='step', label='phase %d mean: %.2f, std: %.2f' % (pid, mean_rates[pid], std_rates[pid]))
+        hs = ax.hist(spike_rates[:,pid], bins=bins,normed=True, histtype='step', label='phase %d mean: %.2f, std: %.2f' % (pid, mean_rates[pid], std_rates[pid]))
         if pid != 5:
             pdf_fit_error[(pid-1)/2] = np.linalg.norm(pdf-pdf_fam)
+            hist_fit_error[(pid-1)/2] = np.linalg.norm(hs[0]-hf[0])
         else:
             pdf_fit_error[(pid-1)/2] = np.linalg.norm(pdf-pdf_nov)
-    print pdf_fit_error
-    writer.writerow([key]+pdf_fit_error.tolist())
+            hist_fit_error[(pid-1)/2] = np.linalg.norm(hs[0]-hn[0])
+    #print pdf_fit_error
+    #print hist_fit_error
+    writer.writerow([key]+hist_fit_error.tolist())
             
 
 
@@ -829,7 +862,7 @@ class Brian_Simulator:
             std_size = (10, 5)
             stretch_size = (50, 50)
             #unpack_connectivity(S_EE)
-            unpack_EI_connectivity(S_EE, S_IE, S_EI, S_II, self.N_E, self.N_I)
+            unpack_EI_connectivity(S_EE, S_IE, S_EI, S_II, self.N_E, self.N_I, statemon_S_EE.rho)
             
 
             figure(figsize=std_size)
@@ -1006,15 +1039,15 @@ def main():
 
 
     # Control variables
-    simulation_length = 5000
+    simulation_length = 8000
 
     stair_length = 500
     resets = 1
 
-    N_E = 1000
-    N_I = 250
+    N_E = 400
+    N_I = 100
     sample = 10
-    debug = False
+    debug = True
 
     ref_data = sio.loadmat('data/nov_stim_rates.mat')
     #raw_data = sio.loadmat('data/Data_Sheinberg_Neuron2012_FiringRates.mat')
