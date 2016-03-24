@@ -177,9 +177,9 @@ def visualize_connectivity(S):
     ylim(-1, Nt)
     xlabel('Source neuron index')
     ylabel('Target neuron index')
-def visualize_all(I=None, F=None, rho=None, t=None, resets=None, legends=None, input_flag=None):
+def visualize_all(I=None, F=None, rho=None, t=None, resets=None,legends=None, input_flag=None):
     fig = figure(figsize=(20, 10))
-    if input_flag=='7_phase_with_bias':
+    if input_flag=='_fam_fam_nov_':
         plot_num = 3
         ax4 = None
     else:
@@ -225,8 +225,9 @@ def visualize_IF_curve(I=None, F=None, t=None, legends=None, sub=False, ax=None)
         #plot(I[:,0], avg_F[:,i])
         #label = 'sigma = '+str(5*(i+1))
         label = legends[i]
+        #ax.plot(I, avg_F[:,i],'.', label=label)
         ax.plot(t, avg_F[:,i], label=label)
-    ax.legend()
+    ax.legend(loc=2)
     #savefig('results/e.png')
     draw()
 def visualize_F_rho_curve(F=None, rho=None, I=None, t=None, resets=None,legends=None, sub=False, ax_a=None, ax_b=None):
@@ -265,6 +266,7 @@ def visualize_F_rho_curve(F=None, rho=None, I=None, t=None, resets=None,legends=
         for i in arange(sample):
             #label = 'sigma = '+str(5*(i+1))
             label = legends[i]
+            print avg_avg_rho[:,i]
             ax_b.plot(avg_avg_rho[:,i], label=label)
         ax_b.legend()
     #savefig('results/f.png')
@@ -345,12 +347,13 @@ def analyse_spikes(key=None, spikes=None):
 
 
     figure(figsize=(20,10))
-    title(str(key))
+    suptitle("Firing Rate Distribution With"+str(key))
     subplot(211)
     plot(firing_rate)
     subplot(212)
     bins = np.linspace(0, 80)
-    hist(firing_rate, bins=bins, histtype='step')
+    hist(firing_rate, bins=bins, histtype='step', label=key)
+    legend(loc=2)
     draw()
     return firing_rate
 
@@ -387,7 +390,7 @@ def analyse_all_parameter_sets(t=None, I=None,spikes=None, R_fam=None,R_nov=None
     writer.writerow(['','1st familiar fit error','2nd familiar fit error', 'novel fit error'])
     for key in spikes:
         ax = fig.add_subplot(grid_height, grid_width, i)
-        print "Key:",key
+        #print "Key:",key
         i = i + 1
         analyse_spikes_phasewise(t, I,key, spikes[key],R_fam,R_nov,params=params,sub=True, ax=ax, writer=writer)
     savefig('results/all_2')
@@ -444,13 +447,13 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
                     continue
             spike_rates[nid, pid] = firing_rate
     spike_rates[np.isnan(spike_rates)] = 0
-    print spike_rates.shape
+    #print spike_rates.shape
 
     # find novel mean
     #nov_mean = mean(spike_rates[:,5])
     #spike_rates = normalize_distribution(spike_rates, nov_mean)
 
-    print spike_rates.shape
+    #print spike_rates.shape
 
    
 
@@ -480,7 +483,7 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
     #f3.close()
     sample = arange(phase_num)
     
-    print R_fam, R_nov
+    #print R_fam, R_nov
     pdf_fam = lognormal_fit(bins, R_fam)
     pdf_nov = lognormal_fit(bins, R_nov)
 
@@ -561,6 +564,29 @@ def build_spike_dict(param_diffs):
                 if v != 0:
                     spike_dict[(key, v)] = None
     return spike_dict
+
+def build_real_value_spike_dict(params, param_diffs):
+    spike_dict = OrderedDict()
+    temp_dict = OrderedDict()
+    temp_lists = []
+    # first add a dummy one, 
+    #spike_dict['Baseline'] = None
+    for key, val in param_diffs.iteritems():
+        if val != 0:
+            #print key, val
+            temp_list = []
+            for v in val:
+                #if v != 0:
+                temp_list.append((key,v+params[key]))
+                    #spike_dict[(key, v)] = None
+            temp_lists.append(temp_list)
+    #print temp_lists
+    for i in itertools.product(*temp_lists):
+        #print i
+        spike_dict[i] = None
+    #spike_dict['Baseline'] = None
+    return spike_dict
+
 def build_multivar_spike_dict(param_diffs):
     spike_dict = OrderedDict()
     temp_dict = OrderedDict()
@@ -631,8 +657,9 @@ def build_multivar_spike_dict(param_diffs):
 
 
 class Brian_Simulator:
-    def __init__(self, simulation_length, N_E, N_I,sample, params, debug):
+    def __init__(self, simulation_length, stair_length, N_E, N_I,sample, params, debug):
         self.simulation_length = simulation_length
+        self.stair_length = stair_length
         self.N_E = N_E
         self.N_I = N_I
         #self.I_ext_E = I_ext_E
@@ -665,7 +692,7 @@ class Brian_Simulator:
 
 
 
-    def run(self, param_diff, mode='cython',I_ext_E=None, I_ext_I=None, resets=1, cpp_directory='output_0'):
+    def run(self, param_diff, mode='cython',input_flag='_fam_fam_nov_', resets=1,cpp_directory='output_0'):
         ## cpp mode
         if mode == 'cpp_standalone':
             set_device('cpp_standalone')
@@ -693,7 +720,14 @@ class Brian_Simulator:
                 exec_str = key[0] + " = "+ key[0] +"+"+str(key[1])
                 print exec_str
                 exec(exec_str)
-        I_ext_E, I_ext_I = self.build_7_phase_input(baseline_I_ext_E, baseline_I_ext_I, mean_I_ext_E, mean_I_ext_I, familiar_individual_sigma)
+        
+        if input_flag =='_fam_fam_nov_':
+            I_ext_E, I_ext_I = self.build_7_phase_input(baseline_I_ext_E, baseline_I_ext_I, mean_I_ext_E, mean_I_ext_I, familiar_individual_sigma)
+
+        elif input_flag == 'stair':
+            I_ext_E = build_increasing_input(0, 40, self.stair_length, self.simulation_length, self.N_E)
+            I_ext_I = build_increasing_input(0, 160, self.stair_length, self.simulation_length, self.N_I)
+            resets = self.simulation_length / self.stair_length
         
         '''
         for key in self.params.keys():
@@ -734,7 +768,6 @@ class Brian_Simulator:
                     dcpre/dt = -cpre / taupre : 1
                     dcpost/dt = -cpost / taupost : 1
                     c = cpre + cpost + eta*cpre*cpost : 1
-                    dummy = (c>theta_D) : 1
                     drho/dt = (-rho*(1-rho)*(0.5-rho) + gamma_P*(1-rho)*(c>theta_P) - gamma_D*rho*(c>theta_D)) / taurho : 1
                     '''
         
@@ -759,7 +792,7 @@ class Brian_Simulator:
                     v_post += w                 
                     '''
         
-        # no post_model_I
+        # no post_model_static
 
 
 
@@ -776,12 +809,10 @@ class Brian_Simulator:
         S_EE.connect('i!=j', p=prob)
         S_IE.connect(True, p=prob)
         S_EI.connect(True, p=prob)
-        S_II.connect('i!=j', p=0.01)
+        # remove II connection in this experiment
+        S_II.connect('i!=j', p=0.0)
         
 
-        #tmp = ((np.arange(len(S))+1) * 4).tolist()
-        #S.delay = tmp*ms
-        #S.delay = [4, 40, 400, 4000]*ms
         
         # scaling J_EE connections wrt Higgins 2014 paper
         k_E = self.N_E * prob / (1000 * 0.05)
@@ -797,16 +828,9 @@ class Brian_Simulator:
         S_EI.w = w_EI / k_I
         S_II.w = w_II / k_I
         
-       
-        
-        #G_E.I_ext = self.I_ext_E
-        #G_E.I_ext = [25] * self.N_E
-        #G_E.I_ext[0] = 50
 
 
-        # Unrecorded simulation
-        #statemon_S = StateMonitor(S, ['rho'], record = [0,1], dt=0.1*ms)
-
+        # set up monitors
         statemon_S_EE = StateMonitor(S_EE, ['rho'], record = E_record_id, dt=1*ms)
         spikemon_G_E = SpikeMonitor(G_E)
         spikemon_G_I = SpikeMonitor(G_I)
@@ -938,270 +962,209 @@ class Brian_Simulator:
         writer.writerow(spikemon_G_E.i)
         f3.close()
 
-        return (binned_rate_E, binned_rate_I, np_rho, spikemon_G_E.all_values())
+        return (I_ext_E, I_ext_I, binned_rate_E, binned_rate_I, np_rho, spikemon_G_E.all_values())
+        #return (I_ext_E, I_ext_I, binned_rate_E, binned_rate_I, np_rho, spikemon_G_E.all_values(), statemon_EE,)
         #p = pyplot.plot(stable_rho)
         #savefig('results/rho.png')
 
 
 
-def main():
-    params = {
-        'cpre_0':0.1,
-        'cpost_0':0.1,
-        'rho_0':0.5,
-        'c':0.2,
-        'dummy':0.2,
-        'Ipre':0,
-        'Ipost':0,
-        'w0':0.5,
-        'w_EE':0.2,
-        'w_IE':0.1,
-        'w_II':-0.4,
-        'w_EI':-0.4,
-        #LIF specific constants,
-        'tau_lif':26, #*ms
-        'V_init':-60,
-        'V_rest':-70,
-        'V_reset':-70,
-        'V_threshold':-50,
-        'CM':0.001,
-        'RM':20.0,
-        'refrac':0,
-        #Synapse model specific constants,
-        'rho_init':0.019,
-        'ca_initial':0,
-        'ca_delay':4.61, #ms
-        'Cpre':0.56175,
-        'Cpost':1.23964,
-        'eta':0,
-        'tau_ca':22.6936,
-        'theta_D':1,
-        'theta_P':1.3,
-        'gamma_D':331.909,
-        'gamma_P':725.085,
-        'taurho':346361, #*ms
-        'taurho_fast':10, #*ms # dummy,
-        'taupre':22,
-        'taupost':22,
-        'tau_ca':22, #*ms
-        'rho_star':0.5,
-        'D':4.6098,
-        'baseline_I_ext_E':15,
-        'baseline_I_ext_I':35,
-        'mean_I_ext_E':21,
-        'mean_I_ext_I':50,
-        'sigma':20,
-        'familiar_individual_sigma':5.3}
+params = {
+    'cpre_0':0.1,
+    'cpost_0':0.1,
+    'rho_0':0.5,
+    'c':0.2,
+    'dummy':0.2,
+    'Ipre':0,
+    'Ipost':0,
+    'w0':0.5,
+    'w_EE':0.2,
+    'w_IE':0.1,
+    'w_II':-0.4,
+    'w_EI':-0.4,
+    #LIF specific constants,
+    'tau_lif':26, #*ms
+    'V_init':-60,
+    'V_rest':-70,
+    'V_reset':-70,
+    'V_threshold':-50,
+    'CM':0.001,
+    'RM':20.0,
+    'refrac':0,
+    #Synapse model specific constants,
+    'rho_init':0.019,
+    'ca_initial':0,
+    'ca_delay':4.61, #ms
+    'Cpre':0.56175,
+    'Cpost':1.23964,
+    'eta':0,
+    'tau_ca':22.6936,
+    'theta_D':1,
+    'theta_P':1.3,
+    'gamma_D':331.909,
+    'gamma_P':725.085,
+    'taurho':346361, #*ms
+    'taurho_fast':10, #*ms # dummy,
+    'taupre':22,
+    'taupost':22,
+    'tau_ca':22, #*ms
+    'rho_star':0.5,
+    'D':4.6098,
+    'baseline_I_ext_E':15,
+    'baseline_I_ext_I':35,
+    'mean_I_ext_E':21,
+    'mean_I_ext_I':50,
+    'sigma':20,
+    'familiar_individual_sigma':5.3}
 
 
 
-    # additively applied to params
-    param_diffs = {
-        'cpre_0':0,
-        'cpost_0':0,
-        'rho_0':0,
-        'c':0,
-        'dummy':0,
-        'Ipre':0,
-        'Ipost':0,
-        'w0':0,
-        'w_EE':0,
-        'w_IE':0,
-        'w_II':0,
-        'w_EI':0,
-        #LIF specific constants,
-        'tau_lif':0, #*ms
-        'V_init':0,
-        'V_rest':0,
-        'V_reset':0,
-        'V_threshold':0,
-        'CM':0,
-        'RM':0,
-        'refrac':0,
-        #Synapse model specific constants,
-        'rho_init':0,
-        'ca_initial':0,
-        'ca_delay':0, #ms
-        'Cpre':0,
-        'Cpost':0,
-        'eta':0,
-        'tau_ca':0,
-        'theta_D':0,
-        'theta_P':0,
-        'gamma_D':0,
-        'gamma_P':0,
-        'taurho':0, #*ms
-        'taurho_fast':0, #*ms # dummy,
-        'taupre':0,
-        'taupost':0,
-        'tau_ca':0, #*ms
-        'rho_star':0,
-        'D':0,
-        'baseline_I_ext_E':0,
-        'baseline_I_ext_I':0,
+# additively applied to params
+param_diffs = {
+    'cpre_0':0,
+    'cpost_0':0,
+    'rho_0':0,
+    'c':0,
+    'dummy':0,
+    'Ipre':0,
+    'Ipost':0,
+    'w0':0,
+    'w_EE':0,
+    'w_IE':0,
+    'w_II':0,
+    'w_EI':0,
+    #LIF specific constants,
+    'tau_lif':0, #*ms
+    'V_init':0,
+    'V_rest':0,
+    'V_reset':0,
+    'V_threshold':0,
+    'CM':0,
+    'RM':0,
+    'refrac':0,
+    #Synapse model specific constants,
+    'rho_init':0,
+    'ca_initial':0,
+    'ca_delay':0, #ms
+    'Cpre':0,
+    'Cpost':0,
+    'eta':0,
+    'tau_ca':0,
+    'theta_D':0,
+    'theta_P':0,
+    'gamma_D':0,
+    'gamma_P':0,
+    'taurho':0, #*ms
+    'taurho_fast':0, #*ms # dummy,
+    'taupre':0,
+    'taupost':0,
+    'tau_ca':0, #*ms
+    'rho_star':0,
+    'D':0,
+    'baseline_I_ext_E':0,
+    'baseline_I_ext_I':0,
 
-        #'mean_I_ext_E':0,
-        #'mean_I_ext_I':0,
-        #'sigma': 0,
-        #'familiar_individual_sigma':0}
+    #'mean_I_ext_E':0,
+    #'mean_I_ext_I':0,
+    #'sigma': 0,
+    #'familiar_individual_sigma':0}
 
-        'mean_I_ext_E':0,
-        'mean_I_ext_I':0,
-        'sigma':0,
-        'familiar_individual_sigma':0}
-        
+    'mean_I_ext_E':0,
+    'mean_I_ext_I':0,
+    'sigma':[-10, 0],
+    'familiar_individual_sigma':0}
+    
 
 
-    # Control variables
-    simulation_length = 8000
+# Control variables
+simulation_length = 1000
+stair_length = 500
+N_E = 1000
+N_I = 1
+sample = 10
+debug = False
 
-    stair_length = 500
+sim = Brian_Simulator(simulation_length=simulation_length, stair_length=stair_length,N_E=N_E,N_I=N_I,sample=sample,
+         params=params, debug=debug)
+
+
+#12 with all excitatory, 15 with E:I=4:1 
+
+# input pattern candidates
+
+input_flag = 'stair'
+#input_flag = 'stable'
+#input_flag = 'stable_with_bias'
+#input_flag = '4_phase'
+#input_flag = '4_phase_with_bias'
+#input_flag = '_fam_fam_nov_'
+if input_flag == 'stair':
+    resets = simulation_length / stair_length
+else:
     resets = 1
 
-    N_E = 500
-    N_I = 125
-    sample = 10
-    debug = True
 
-    ref_data = sio.loadmat('data/nov_stim_rates.mat')
+# result variables
+
+#spike_dict = build_spike_dict(param_diffs) # store spike trains for each parameter set
+
+spike_dict = build_multivar_spike_dict(param_diffs) # store spike trains for each parameter set
+spike_dict = build_real_value_spike_dict(params,param_diffs) # store spike trains for each parameter set
+
+#print spike_dict
+param_trial_num = len(spike_dict)
+
+binned_rate_E = np.zeros((simulation_length * 10, param_trial_num))
+binned_rate_I = np.zeros((simulation_length * 10, param_trial_num))
+#rho = np.zeros((sample, simulation_length, param_trial_num))
+rho = np.zeros((N_E, simulation_length, param_trial_num))
+mean_rate_shift =np.zeros((param_trial_num,1))
+#print spike_dict
+
+if param_trial_num == -1:
+    mode = 'cpp_standalone'
+else:
+    mode = 'cython'
+
+
+t = arange(simulation_length)
+
+#for i in arange(param_trial_num):
+for ind, key in enumerate(spike_dict):
+    cpp_directory = 'output_'+str(ind)
+
+    (I_ext_E, I_ext_I, binned_rate_E[:,ind], binned_rate_I[:,ind], rho[:,:,ind], spike_dict[key]) = sim.run(key, mode=mode, input_flag=input_flag, resets=resets, cpp_directory=cpp_directory)
+    #call(['rm','-r',cpp_directory])
+
+
+# analysis
+
+if input_flag == '4_phase_with_bias':
+    analyse_all_parameter_sets(t, I_ext_E, spike_dict,real_data) 
+    #for key in spike_dict:
+    #    print "Key:",key
+    #    analyse_spikes_phasewise(t, I_ext_E,key, spike_dict[key], real_data)
+elif input_flag == '_fam_fam_nov_':
+    #ref_data = sio.loadmat('data/nov_stim_rates.mat')
     #raw_data = sio.loadmat('data/Data_Sheinberg_Neuron2012_FiringRates.mat')
     (R_fam_E, R_fam_I, R_nov_E, R_nov_I) = unpack_raw_data('data/Data_Sheinberg_Neuron2012_FiringRates.mat')
 
-    real_data = ref_data['rnov']
+    #real_data = ref_data['rnov']
     #lognormal_fit(real_data)
+    analyse_all_parameter_sets(t, I_ext_E, spike_dict,R_fam_E,R_nov_E, params) 
+    #analyse_all_parameter_sets(t, I_ext_I, spike_dict,real_data, params) 
+    #for key in spike_dict:
+        #print "Key:",key
+        #analyse_spikes_phasewise(t, I_ext_E,key, spike_dict[key], real_data)
 
-    #12 with all excitatory, 15 with E:I=4:1 
+else:
+    for key in spike_dict:
+        #analyse_spikes_phasewise(t, I_ext_E,val)
+        analyse_spikes(key, spike_dict[key])
 
-    # input pattern candidates
-
-    #input_flag = 'stair'
-    #input_flag = 'stable'
-    #input_flag = 'stable_with_bias'
-    #input_flag = '4_phase'
-    #input_flag = '4_phase_with_bias'
-    input_flag = '7_phase_with_bias'
-    
-
-    baseline_I_ext_E = params['baseline_I_ext_E']
-    baseline_I_ext_I = params['baseline_I_ext_I']
-    mean_I_ext_E = params['mean_I_ext_E']
-    mean_I_ext_I = params['mean_I_ext_I']
-    familiar_individual_sigma =params['familiar_individual_sigma']
-
-    individual_sigmas_E_familiar = np.random.normal(0,familiar_individual_sigma,N_E)
-    individual_sigmas_I_familiar = np.random.normal(0,familiar_individual_sigma,N_I)
-
-    individual_sigmas_E_novel = np.random.normal(0,familiar_individual_sigma,N_E)
-    individual_sigmas_I_novel = np.random.normal(0,familiar_individual_sigma,N_I)
-
-    individual_sigmas_E = np.vstack((individual_sigmas_E_familiar, individual_sigmas_E_novel))
-    individual_sigmas_I = np.vstack((individual_sigmas_I_familiar, individual_sigmas_I_novel))
+#snapshot = simulation_length / 4 + 1
+#visualize_I_ext(I_ext_E[snapshot,:])
+visualize_all(I_ext_E, binned_rate_E, rho, t, resets, spike_dict.keys(), input_flag)
+show()
 
 
-    if input_flag == 'stair':
-        I_ext_E = build_increasing_input(0, 40, stair_length, simulation_length, N_E)
-        I_ext_I = build_increasing_input(0, 160, stair_length, simulation_length, N_I)
-        resets = simulation_length / stair_length
-
-    elif input_flag == 'stable':
-        I_ext_E= build_input([mean_I_ext_E], [0,1], simulation_length, N_E)
-        I_ext_I= build_input([mean_I_ext_I], [0,1], simulation_length, N_I)
-
-    elif input_flag == 'stable_with_bias':
-        I_ext_E= add_bias(I_ext_E_stable, individual_sigmas_E_familiar)
-        I_ext_I= add_bias(I_ext_I_stable, individual_sigmas_I_familiar)
-
-    elif input_flag == '4_phase':
-        I_ext_E= build_input([0,1,0,1], [0, 0.25,0.5,0.75, 1], simulation_length, N_E)
-        I_ext_I= build_input([0,1,0,1], [0, 0.25,0.5,0.75, 1], simulation_length, N_I)
-
-
-    elif input_flag == '4_phase_with_bias':
-        I_ext_E= build_input([0,1,0,1], [0, 0.25,0.5,0.75, 1], simulation_length, N_E)
-        I_ext_I= build_input([0,1,0,1], [0, 0.25,0.5,0.75, 1], simulation_length, N_I)
-
-        I_ext_E= add_bias_phasewise_old(I_ext_E, mean_I_ext_E, individual_sigmas_E_familiar)
-        I_ext_I= add_bias_phasewise_old(I_ext_I, mean_I_ext_I, individual_sigmas_I_familiar)
-
-    elif input_flag == '7_phase_with_bias':
-        #I_ext_E= build_input([0,1,0,1,0,2,0], [0, 0.15,0.3,0.45,0.6,0.75, 0.9, 1], simulation_length, N_E)
-        #I_ext_I= build_input([0,1,0,1,0,2,0], [0, 0.15,0.3,0.45,0.6,0.75, 0.9, 1], simulation_length, N_I)
-        I_ext_E= build_input([0,1,0,1,0,2,0], [0, 0.4,0.5,0.6,0.7,0.8, 0.9, 1], simulation_length, N_E)
-        individual_sigmas_I = 0*individual_sigmas_I
-        I_ext_I= build_input([0,1,0,1,0,2,0], [0, 0.4,0.5,0.6,0.7,0.8, 0.9, 1], simulation_length, N_I)
-        #I_ext_I= build_input([0,1,0,1,0,2,0], [0, 0.4,0.5,0.6,0.7,0.8, 0.9, 1], simulation_length, N_I)
-
-        I_ext_E= add_bias_phasewise(I_ext_E, baseline_I_ext_E, mean_I_ext_E, individual_sigmas_E)
-        I_ext_I= add_bias_phasewise(I_ext_I, baseline_I_ext_I, mean_I_ext_I, individual_sigmas_I)
-        #I_ext_I= build_input([baseline_I_ext_I], [0,1], simulation_length, N_I)
-
-
-
-
-    # result variables
-
-    #spike_dict = build_spike_dict(param_diffs) # store spike trains for each parameter set
-
-    spike_dict = build_multivar_spike_dict(param_diffs) # store spike trains for each parameter set
-
-    #print spike_dict
-    param_trial_num = len(spike_dict)
-
-    binned_rate_E = np.zeros((simulation_length * 10, param_trial_num))
-    binned_rate_I = np.zeros((simulation_length * 10, param_trial_num))
-    #rho = np.zeros((sample, simulation_length, param_trial_num))
-    rho = np.zeros((N_E, simulation_length, param_trial_num))
-    mean_rate_shift =np.zeros((param_trial_num,1))
-    #print spike_dict
-
-    if param_trial_num == -1:
-        mode = 'cpp_standalone'
-    else:
-        mode = 'cython'
-
-
-    t = arange(simulation_length)
-    
-    sim = Brian_Simulator(simulation_length=simulation_length, N_E=N_E,N_I=N_I,sample=sample,
-             params=params, debug=debug)
-    #for i in arange(param_trial_num):
-    for i, key in enumerate(spike_dict):
-        cpp_directory = 'output_'+str(i)
-
-        #print key
-        (binned_rate_E[:,i], binned_rate_I[:,i], rho[:,:,i], spike_dict[key]) = sim.run(key, mode=mode, I_ext_E=I_ext_E, I_ext_I=I_ext_I, resets=resets, cpp_directory=cpp_directory)
-        #call(['rm','-r',cpp_directory])
-
-
-    #print spikes['t'][0]
-    # spike analysis
-    #print len(spike_dict)
-    
-    if input_flag == '4_phase_with_bias':
-        analyse_all_parameter_sets(t, I_ext_E, spike_dict,real_data) 
-        #for key in spike_dict:
-        #    print "Key:",key
-        #    analyse_spikes_phasewise(t, I_ext_E,key, spike_dict[key], real_data)
-    elif input_flag == '7_phase_with_bias':
-        analyse_all_parameter_sets(t, I_ext_E, spike_dict,R_fam_E,R_nov_E, params) 
-        #analyse_all_parameter_sets(t, I_ext_I, spike_dict,real_data, params) 
-        #for key in spike_dict:
-            #print "Key:",key
-            #analyse_spikes_phasewise(t, I_ext_E,key, spike_dict[key], real_data)
-
-    else:
-        for key in spike_dict:
-            #analyse_spikes_phasewise(t, I_ext_E,val)
-            analyse_spikes(key, spike_dict[key])
-
-    #snapshot = simulation_length / 4 + 1
-    #visualize_I_ext(I_ext_E[snapshot,:])
-    visualize_all(I_ext_E, binned_rate_E, rho, t, resets, spike_dict.keys(), input_flag)
-    #visualize_tI_curve(I_ext_E_stable, t)
-    #visualize_IF_curve(I_ext_E_stable, binned_rate_E, t)
-    #visualize_F_rho_curve(binned_rate_E, rho,I_ext_E_stable,t, resets)
-    show()
-
-
-if __name__ == "__main__":
-    main()
