@@ -41,7 +41,8 @@ d3.json("connectivity.json", function(error, graph) {
       .nodes(graph.nodes)
       .links(graph.links)
       .start();
-      
+      for (var i = 0; i < n; ++i) force.tick();
+      .stop();
 
   var link = svg.selectAll(".link")
       .data(graph.links)

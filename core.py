@@ -36,29 +36,43 @@ def unpack_EI_connectivity(S_EE, S_IE, S_EI, S_II, N_E, N_I, statemon_EE_rho):
     thresh = 0.5 * S_EE.w[0]
     print thresh
 
-    ### All
-    #connectivity = zip(S_i, S_j, S_w)
-    #trimmed_connectivity = []
-    #for conn in connectivity:
-    #    print conn
-    #    if conn[2] > thresh:
-    #        trimmed_connectivity.append(conn)
-
-
-    ## EE only
-    EE_connectivity = zip(S_EE.i, S_EE.j, S_EE.rho)
-    thresh = 0.5
+    ## All
+    connectivity = zip(S_i, S_j, S_w)
     trimmed_connectivity = []
-    for conn in EE_connectivity:
+    for conn in connectivity:
         print conn
         if conn[2] > thresh:
             trimmed_connectivity.append(conn)
 
+
     G = nx.Graph()
-    G.add_weighted_edges_from(trimmed_connectivity)
+    for i in S_EE.i:
+        G.add_node(i, group='E')
+    for i in range(N_E, N_E+N_I):
+        G.add_node(i, group='I')
+    G.add_weighted_edges_from(connectivity)
     figure(figsize=(40,20))
     d = json_graph.node_link_data(G)
     json.dump(d, open('d3js/connectivity.json','w'))
+
+
+    ## EE only
+    #EE_connectivity = zip(S_EE.i, S_EE.j, S_EE.rho)
+    #thresh = 0.5
+    #trimmed_connectivity = []
+    #for conn in EE_connectivity:
+    #    #print conn
+    #    if conn[2] > thresh:
+    #        trimmed_connectivity.append(conn)
+
+    #G = nx.Graph()
+
+    #for i in S_EE.i:
+    #    G.add_node(i, group='E')
+    #G.add_weighted_edges_from(trimmed_connectivity)
+    #figure(figsize=(40,20))
+    #d = json_graph.node_link_data(G)
+    #json.dump(d, open('d3js/connectivity.json','w'))
     
 
     axis('off')
@@ -762,7 +776,7 @@ class Brian_Simulator:
         S_EE.connect('i!=j', p=prob)
         S_IE.connect(True, p=prob)
         S_EI.connect(True, p=prob)
-        S_II.connect('i!=j', p=prob)
+        S_II.connect('i!=j', p=0.01)
         
 
         #tmp = ((np.arange(len(S))+1) * 4).tolist()
@@ -1044,8 +1058,8 @@ def main():
     stair_length = 500
     resets = 1
 
-    N_E = 400
-    N_I = 100
+    N_E = 200
+    N_I = 50
     sample = 10
     debug = True
 
