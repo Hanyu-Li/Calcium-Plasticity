@@ -988,7 +988,7 @@ def main():
         'D':4.6098,
         'baseline_I_ext_E':15,
         'baseline_I_ext_I':35,
-        'mean_I_ext_E':21,
+        'mean_I_ext_E':30,
         'mean_I_ext_I':50,
         'sigma':20,
         'familiar_individual_sigma':5.3}
@@ -1061,7 +1061,7 @@ def main():
     N_E = 500
     N_I = 125
     sample = 10
-    debug = True
+    debug = False
 
     ref_data = sio.loadmat('data/nov_stim_rates.mat')
     #raw_data = sio.loadmat('data/Data_Sheinberg_Neuron2012_FiringRates.mat')
@@ -1154,7 +1154,7 @@ def main():
     mean_rate_shift =np.zeros((param_trial_num,1))
     #print spike_dict
 
-    if param_trial_num == -1:
+    if param_trial_num == 1:
         mode = 'cpp_standalone'
     else:
         mode = 'cython'

@@ -1077,12 +1077,12 @@ param_diffs = {
 
 
 # Control variables
-simulation_length = 1000
+simulation_length = 10000
 stair_length = 500
 N_E = 1000
-N_I = 1
+N_I = 250
 sample = 10
-debug = False
+debug = True
 
 sim = Brian_Simulator(simulation_length=simulation_length, stair_length=stair_length,N_E=N_E,N_I=N_I,sample=sample,
          params=params, debug=debug)
@@ -1092,12 +1092,12 @@ sim = Brian_Simulator(simulation_length=simulation_length, stair_length=stair_le
 
 # input pattern candidates
 
-input_flag = 'stair'
+#input_flag = 'stair'
 #input_flag = 'stable'
 #input_flag = 'stable_with_bias'
 #input_flag = '4_phase'
 #input_flag = '4_phase_with_bias'
-#input_flag = '_fam_fam_nov_'
+input_flag = '_fam_fam_nov_'
 if input_flag == 'stair':
     resets = simulation_length / stair_length
 else:
@@ -1121,7 +1121,7 @@ rho = np.zeros((N_E, simulation_length, param_trial_num))
 mean_rate_shift =np.zeros((param_trial_num,1))
 #print spike_dict
 
-if param_trial_num == -1:
+if param_trial_num == 1:
     mode = 'cpp_standalone'
 else:
     mode = 'cython'

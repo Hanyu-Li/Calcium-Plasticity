@@ -357,7 +357,7 @@ def analyse_spikes(key=None, spikes=None):
 
 def lognormal_fit(x_fit = None, data=None, vis=False):
     scatter, loc, mean = lognorm.fit(data)
-    print scatter, log, mean
+    #print scatter, log, mean
     #x_fit = np.logspace(0,2,num=25)
     pdf_fit = lognorm.pdf(x_fit, scatter, loc, mean)
     if vis:
@@ -466,9 +466,10 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
         figure(figsize=(20,10))
         ax = plt.gca()
     title(str(key))
-    log_x = False
+    log_x = True
     if log_x:
         bins = np.logspace(-1, 2, num=25)
+        xscale('log')
     else:
         bins = np.linspace(0,100, num=51)
         #bins = np.linspace(-2,8, num=51)
@@ -482,6 +483,7 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
     sample = arange(phase_num)
     
     #print R_fam, R_nov
+    print R_fam
     pdf_fam = lognormal_fit(bins, R_fam)
     pdf_nov = lognormal_fit(bins, R_nov)
 

@@ -10,10 +10,16 @@ params = {
     'Ipre':0,
     'Ipost':0,
     'w0':0.5,
+
     'w_EE':0.2,
     'w_IE':0.1,
     'w_II':-0.4,
     'w_EI':-0.4,
+
+    #'w_EE':0.05,
+    #'w_IE':0.5,
+    #'w_II':-0.4,
+    #'w_EI':-0.04,
     #LIF specific constants,
     'tau_lif':26, #*ms
     'V_init':-60,
@@ -44,10 +50,10 @@ params = {
     'D':4.6098,
     'baseline_I_ext_E':15,
     'baseline_I_ext_I':35,
-    'mean_I_ext_E':21,
+    'mean_I_ext_E':40,
     'mean_I_ext_I':50,
     'sigma':20,
-    'familiar_individual_sigma':5.3}
+    'familiar_individual_sigma':10}
 
 
 
@@ -103,18 +109,18 @@ param_diffs = {
 
     'mean_I_ext_E':0,
     'mean_I_ext_I':0,
-    'sigma':[-10, 0],
+    'sigma':0,
     'familiar_individual_sigma':0}
     
 
 
 # Control variables
-simulation_length = 1000
+simulation_length = 5000
 stair_length = 500
-N_E = 1000
-N_I = 1
+N_E = 500
+N_I = 125
 sample = 10
-debug = False
+debug = True
 
 sim = Brian_Simulator(simulation_length=simulation_length, stair_length=stair_length,N_E=N_E,N_I=N_I,sample=sample,
          params=params, debug=debug)
@@ -153,7 +159,7 @@ rho = np.zeros((N_E, simulation_length, param_trial_num))
 mean_rate_shift =np.zeros((param_trial_num,1))
 #print spike_dict
 
-if param_trial_num == -1:
+if param_trial_num == 1:
     mode = 'cpp_standalone'
 else:
     mode = 'cython'
