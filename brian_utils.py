@@ -151,8 +151,8 @@ def unpack_raw_data(filepath):
 
     Norm_R_F_I = (R_fam_inh - np.mean(R_nov_inh, axis=0)) / np.std(R_fam_inh, axis=0)
     Norm_R_N_I = (R_nov_inh - np.mean(R_nov_inh, axis=0)) / np.std(R_nov_inh, axis=0)
-    #return (Norm_R_F_E, Norm_R_F_I, Norm_R_N_E, Norm_R_N_I)
-    return (R_fam_exc, R_fam_inh, R_nov_exc, R_nov_inh)
+    return (Norm_R_F_E, Norm_R_F_I, Norm_R_N_E, Norm_R_N_I)
+    #return (R_fam_exc, R_fam_inh, R_nov_exc, R_nov_inh)
 
 
 
@@ -404,6 +404,11 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
     phase_split = np.concatenate(([0],np.squeeze(phase_split)) )
     #print new_ind
     phase_num = len(phase_split)
+    #print "phase split:", phase_split
+    #print phase_num
+    phase_length = np.diff(np.concatenate((phase_split, [t.shape[0]])))
+    phase_length = np.double(phase_length) / 1000
+    print phase_length
     #starts = new_ind[0::2]
     #ends = new_ind[1::2]
 
@@ -434,7 +439,7 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
             phase_spike_time = all_spike_time[np.logical_and(np.less_equal(all_spike_time, end_t), np.greater(all_spike_time, start_t))]
             #print phase_spike_time
             if len(phase_spike_time) == 1:
-                firing_rate = 1
+                firing_rate = 1/phase_length[pid]
             elif len(phase_spike_time) == 0:
                 firing_rate = 0
             else:
@@ -444,8 +449,9 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
                 except:
                     continue
             spike_rates[nid, pid] = firing_rate
+
     spike_rates[np.isnan(spike_rates)] = 0
-    #print spike_rates.shape
+    print spike_rates.shape
 
     # find novel mean
     #nov_mean = mean(spike_rates[:,5])
@@ -456,8 +462,9 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
    
 
 
-    mean_rates = np.mean(spike_rates, axis=0)
-    std_rates = np.std(spike_rates, axis=0)
+    #mean_rates = np.mean(spike_rates, axis=0)
+    #std_rates = np.std(spike_rates, axis=0)
+
     #mean_shift = mean_rates[3] - mean_rates[1]
 
     #print mean_rates, std_rates
@@ -466,13 +473,13 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
         figure(figsize=(20,10))
         ax = plt.gca()
     title(str(key))
-    log_x = True
+    log_x = False
     if log_x:
-        bins = np.logspace(-1, 2, num=25)
+        bins = np.logspace(-1, 2, num=51)
         xscale('log')
     else:
-        bins = np.linspace(0,100, num=51)
-        #bins = np.linspace(-2,8, num=51)
+        #bins = np.linspace(0,100, num=51)
+        bins = np.linspace(-2,8, num=51)
 
 
 
@@ -483,36 +490,58 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
     sample = arange(phase_num)
     
     #print R_fam, R_nov
-    print R_fam
+    #print R_fam
+    
     pdf_fam = lognormal_fit(bins, R_fam)
     pdf_nov = lognormal_fit(bins, R_nov)
 
 
-    '''
+    title("Firing rate distribution")
     h = ax.plot(bins, pdf_fam)
-    ax.hist(R_fam, bins=bins,normed=True, histtype='step', color=h[0].get_color(),label='familiar data mean: %.2f, std: %.2f' % (mean_fam, std_fam))
+    hf = ax.hist(R_fam, bins=bins,normed=True, histtype='step', color=h[0].get_color(),label='familiar data mean: %.2f, std: %.2f' % (mean_fam, std_fam))
     h = ax.plot(bins, pdf_nov)
-    ax.hist(R_nov, bins=bins,normed=True, histtype='step', color=h[0].get_color(), label='novel data mean: %.2f, std: %.2f' % (mean_nov, std_nov))
-    '''
+    hn = ax.hist(R_nov, bins=bins,normed=True, histtype='step', color=h[0].get_color(), label='novel data mean: %.2f, std: %.2f' % (mean_nov, std_nov))
 
+    '''
     hf = ax.hist(R_fam, bins=bins,normed=True, histtype='step',label='familiar data mean: %.2f, std: %.2f' % (mean_fam, std_fam))
 
-    hn = ax.hist(R_nov, bins=bins,normed=True, histtype='step',label='novel data mean: %.2f, std: %.2f' % (mean_nov, std_nov))
+    hn = ax.hist(R_nov, bins=bins,normed=True, histtype='step',color='r',label='novel data mean: %.2f, std: %.2f' % (mean_nov, std_nov))
+    '''
 
 
 
 
 
-    for pid in sample[1::2]:
+    #for pid in sample[1::2]:
+    for pid in [5,3,1]:
         #print spike_rates[:,pid].shape
-        pdf = lognormal_fit(bins, spike_rates[:,pid])
-        #h = ax.plot(bins, pdf)
+        # perform trimming
+        #trimmed_rate = trim_NaN(spike_rates[:,pid])
+
+        trimmed_rate = spike_rates[:,pid]
+        trimmed_rate = trimmed_rate[np.greater(trimmed_rate,0)]
+
+        #print trimmed_rate.shape
+        if pid == 5:
+            nov_mean = mean(trimmed_rate)
+        trimmed_rate = normalize_distribution(trimmed_rate, nov_mean)
+        trimmed_mean = mean(trimmed_rate)
+        trimmed_std = std(trimmed_rate)
+        pdf = lognormal_fit(bins, trimmed_rate)
+        h = ax.plot(bins, pdf)
         #ax.hist(spike_rates[:,pid], bins=bins,normed=True, histtype='step',color=h[0].get_color(), label='phase %d mean: %.2f, std: %.2f' % (pid, mean_rates[pid], std_rates[pid]))
 
-        hs = ax.hist(spike_rates[:,pid], bins=bins,normed=True, histtype='step', label='phase %d mean: %.2f, std: %.2f' % (pid, mean_rates[pid], std_rates[pid]))
+        if pid == 5:
+            label = "During Novel Simulation"
+        elif pid == 3:
+            label = "During Familiar Simulation"
+        elif pid == 1:
+            label = "During Training with Familiar Simulation"
+        hs = ax.hist(trimmed_rate, bins=bins,normed=True, histtype='step',color=h[0].get_color(), label='%s mean: %.2f, std: %.2f' % (label, trimmed_mean, trimmed_std))
+        #hs = ax.hist(trimmed_rate, bins=bins,normed=True, histtype='step', label='phase %d mean: %.2f, std: %.2f' % (pid, trimmed_mean, trimmed_std))
         if pid != 5:
             pdf_fit_error[(pid-1)/2] = np.linalg.norm(pdf-pdf_fam)
-            hist_fit_error[(pid-1)/2] = np.linalg.norm(hs[0]-hf[0])
+            hist_fit_error[(pid-1)/2] = np.linalg.norm(hs[0]-hn[0])
         else:
             pdf_fit_error[(pid-1)/2] = np.linalg.norm(pdf-pdf_nov)
             hist_fit_error[(pid-1)/2] = np.linalg.norm(hs[0]-hn[0])
@@ -545,7 +574,7 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
     #ax.text(80, 8, 'Mean_I_ext: %.2f, Shared_sigma: %.2f, Familiar_individual_sigma: %.2f, Novel_individual_sigma: %.2f' % (params['mean_I_ext'],params['sigma'], params['familiar_individual_sigma'],params['familiar_individual_sigma']))
     #ax.plot([], [], color='w',label='Mean_I_ext: %.2f, Shared_sigma: %.2f, Familiar_individual_sigma: %.2f, Novel_individual_sigma: %.2f' % (params['mean_I_ext'],params['sigma'], params['familiar_individual_sigma'],params['familiar_individual_sigma']))
 
-    ax.legend(loc=2, fontsize=8)
+    ax.legend(loc=2, fontsize=16)
     draw()
 
     return

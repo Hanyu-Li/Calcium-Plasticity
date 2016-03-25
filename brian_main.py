@@ -48,12 +48,12 @@ params = {
     'tau_ca':22, #*ms
     'rho_star':0.5,
     'D':4.6098,
-    'baseline_I_ext_E':15,
+    'baseline_I_ext_E':25,
     'baseline_I_ext_I':35,
     'mean_I_ext_E':40,
     'mean_I_ext_I':50,
     'sigma':20,
-    'familiar_individual_sigma':10}
+    'familiar_individual_sigma':9}
 
 
 
@@ -115,10 +115,10 @@ param_diffs = {
 
 
 # Control variables
-simulation_length = 5000
+simulation_length =8000
 stair_length = 500
-N_E = 500
-N_I = 125
+N_E = 1000
+N_I = 250
 sample = 10
 debug = True
 

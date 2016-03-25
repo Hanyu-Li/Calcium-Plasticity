@@ -31,6 +31,10 @@ class Brian_Simulator:
         individual_sigmas_I = 0*individual_sigmas_I
         I_ext_I= build_input([0,1,0,1,0,2,0], [0, 0.4,0.5,0.6,0.7,0.8, 0.9, 1], self.simulation_length, self.N_I)
 
+        #I_ext_E= build_input([0,1,0,1,0,2,0], [0, 0.4,0.8,0.9,0.925,0.95, 0.975, 1], self.simulation_length, self.N_E)
+        #individual_sigmas_I = 0*individual_sigmas_I
+        #I_ext_I= build_input([0,1,0,1,0,2,0], [0, 0.4,0.8,0.9,0.925,0.95, 0.975, 1], self.simulation_length, self.N_I)
+
         I_ext_E= add_bias_phasewise(I_ext_E, baseline_I_ext_E, mean_I_ext_E, individual_sigmas_E)
         I_ext_I= add_bias_phasewise(I_ext_I, baseline_I_ext_I, mean_I_ext_I, individual_sigmas_I)
         return (I_ext_E, I_ext_I)
@@ -49,6 +53,7 @@ class Brian_Simulator:
         # control parameters
         observe_window = 100
         E_record_id = range(self.N_E)
+        E_sample_id = range(self.sample)
         I_record_id = range(self.N_I)
 
         #Unpack Variables used in brian code
@@ -249,19 +254,19 @@ class Brian_Simulator:
             
 
             figure(figsize=std_size)
-            plot(statemon_S_EE.t, transpose(statemon_S_EE.rho[E_record_id]))
+            plot(statemon_S_EE.t, transpose(statemon_S_EE.rho[E_sample_id]))
             xlabel('time/s')
-            ylabel('synaptic efficacy \rho')
+            ylabel('synaptic efficacy rho')
             savefig('results/a.png')
             
             figure(figsize=stretch_size)
             subplot(211)
             title('excitatory')
-            plot(spikemon_G_E.t, spikemon_G_E.i, '.k', markersize=1)
+            plot(spikemon_G_E.t, spikemon_G_E.i, '.k', markersize=2)
             xlim([0, self.simulation_length/1000])
             subplot(212)
             title('inhibitory')
-            plot(spikemon_G_I.t, spikemon_G_I.i, '.k', markersize=1)
+            plot(spikemon_G_I.t, spikemon_G_I.i, '.k', markersize=2)
             xlim([0, self.simulation_length/1000])
             savefig('results/b.png')
 
