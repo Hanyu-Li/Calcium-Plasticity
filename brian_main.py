@@ -115,7 +115,7 @@ param_diffs = {
 
 
 # Control variables
-simulation_length =8000
+simulation_length =1000
 stair_length = 500
 N_E = 1000
 N_I = 250

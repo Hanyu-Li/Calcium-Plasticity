@@ -250,8 +250,15 @@ class Brian_Simulator:
             std_size = (10, 5)
             stretch_size = (50, 50)
             #unpack_connectivity(S_EE)
+            print I_ext_E.shape
+            baseline = I_ext_E[0,0]
+            phase_split = np.where(diff(I_ext_E[:,0] - baseline) != 0)
+            phase_split = np.squeeze(phase_split)
+            snapshot_fam = phase_split[0] + 1
+            snapshot_nov = phase_split[4] + 1
+            visualize_I_ext(I_ext_E[snapshot_fam,:], "familiar pattern")
+            visualize_I_ext(I_ext_E[snapshot_nov,:], "novel pattern")
             unpack_EI_connectivity(S_EE, S_IE, S_EI, S_II, self.N_E, self.N_I, statemon_S_EE.rho)
-            
 
             figure(figsize=std_size)
             plot(statemon_S_EE.t, transpose(statemon_S_EE.rho[E_sample_id]))
@@ -261,25 +268,25 @@ class Brian_Simulator:
             
             figure(figsize=stretch_size)
             subplot(211)
-            title('excitatory')
+            title('excitatory', fontsize=16)
             plot(spikemon_G_E.t, spikemon_G_E.i, '.k', markersize=2)
             xlim([0, self.simulation_length/1000])
             subplot(212)
-            title('inhibitory')
+            title('inhibitory', fontsize=16)
             plot(spikemon_G_I.t, spikemon_G_I.i, '.k', markersize=2)
             xlim([0, self.simulation_length/1000])
             savefig('results/b.png')
 
             figure(figsize=std_size)
             subplot(211)
-            title('excitatory spike rate')
+            title('excitatory spike rate', fontsize=16)
             #plot(popratemon_G_E.t[window_length-1:]/ms, binned_rate_E)
             plot(popratemon_G_E.t/ms, binned_rate_E)
 
             #plot(self.I_ext_E[:,0], binned_rate) 
             
             subplot(212)
-            title('inhibitory spike rate')
+            title('inhibitory spike rate', fontsize=16)
 
             #plot(popratemon_G_I.t[window_length-1:]/ms, binned_rate_I)
             plot(popratemon_G_I.t/ms, binned_rate_I)

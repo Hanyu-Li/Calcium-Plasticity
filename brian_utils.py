@@ -31,7 +31,7 @@ def unpack_EI_connectivity(S_EE, S_IE, S_EI, S_II, N_E, N_I, statemon_EE_rho):
 
 
    
-    thresh = 0.5 * S_EE.w[0]
+    thresh = 0.6 * S_EE.w[0]
     #print thresh
 
     ## All
@@ -50,6 +50,7 @@ def unpack_EI_connectivity(S_EE, S_IE, S_EI, S_II, N_E, N_I, statemon_EE_rho):
         G.add_node(i, group='I')
     G.add_weighted_edges_from(connectivity)
     figure(figsize=(40,20))
+    title("Connections above threshold"+str(thresh), fontsize=16)
     d = json_graph.node_link_data(G)
     json.dump(d, open('d3js/connectivity.json','w'))
 
@@ -288,12 +289,13 @@ def build_increasing_input(min_v, max_v, stair_length, length, N):
     b = np.cumsum(a, axis=0)
     return b
 
-def visualize_I_ext(I=None):
+def visualize_I_ext(I=None, name=None):
     #print I.shape
     width = np.floor(np.sqrt(I.shape[0]))
     I_trim = I[0:width*width]
     #print width
     figure()
+    title(name)
     imshow(I_trim.reshape((-1,width)))
     draw()
 def add_bias(I=None, sigmas=None):
@@ -408,7 +410,7 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
     #print phase_num
     phase_length = np.diff(np.concatenate((phase_split, [t.shape[0]])))
     phase_length = np.double(phase_length) / 1000
-    print phase_length
+    #print phase_length
     #starts = new_ind[0::2]
     #ends = new_ind[1::2]
 
@@ -451,7 +453,7 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
             spike_rates[nid, pid] = firing_rate
 
     spike_rates[np.isnan(spike_rates)] = 0
-    print spike_rates.shape
+    #print spike_rates.shape
 
     # find novel mean
     #nov_mean = mean(spike_rates[:,5])
@@ -574,7 +576,7 @@ def analyse_spikes_phasewise(t=None, I=None, key=None, spikes=None, R_fam=None,R
     #ax.text(80, 8, 'Mean_I_ext: %.2f, Shared_sigma: %.2f, Familiar_individual_sigma: %.2f, Novel_individual_sigma: %.2f' % (params['mean_I_ext'],params['sigma'], params['familiar_individual_sigma'],params['familiar_individual_sigma']))
     #ax.plot([], [], color='w',label='Mean_I_ext: %.2f, Shared_sigma: %.2f, Familiar_individual_sigma: %.2f, Novel_individual_sigma: %.2f' % (params['mean_I_ext'],params['sigma'], params['familiar_individual_sigma'],params['familiar_individual_sigma']))
 
-    ax.legend(loc=2, fontsize=16)
+    ax.legend(loc=1, fontsize=16)
     draw()
 
     return
