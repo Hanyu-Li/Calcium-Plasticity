@@ -52,7 +52,7 @@ def unpack_EI_connectivity(S_EE, S_IE, S_EI, S_II, N_E, N_I, statemon_EE_rho):
     figure(figsize=(40,20))
     title("Connections above threshold"+str(thresh), fontsize=16)
     d = json_graph.node_link_data(G)
-    json.dump(d, open('d3js/connectivity.json','w'))
+    json.dump(d, open('visualize_tools/d3js/connectivity.json','w'))
 
 
     ## EE only
