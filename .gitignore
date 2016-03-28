@@ -4,6 +4,7 @@ output*/
 *.swp
 *.pyc
 *.json
+!notebooks/connectivity_E_200_I_50*
 =======
 #################
 ## Eclipse
